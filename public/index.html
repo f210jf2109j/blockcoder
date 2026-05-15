@@ -926,8 +926,11 @@
       const iceServers = await response.json();
 
       NET.peer = new RTCPeerConnection({
-        iceServers: iceServers
+        iceServers: iceServers,
+        iceTransportPolicy: "relay"
       });
+
+      console.log("ICE servers:", iceServers);
       NET.peer.onicecandidate = (event) => {
         if (event.candidate && NET.socket && NET.room) {
           NET.socket.emit("ice-candidate", { room: NET.room, candidate: event.candidate });
