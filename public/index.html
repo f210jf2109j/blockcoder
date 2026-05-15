@@ -800,24 +800,65 @@
 
     const remotePlayerGroup = new THREE.Group();
     remotePlayerGroup.visible = false;
-    const remoteBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.7, 1.55, 0.7),
-      new THREE.MeshLambertMaterial({ color: 0x2f74ff })
-    );
-    remoteBody.position.y = 0.775;
-    const remoteHead = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.55, 0.55),
-      new THREE.MeshLambertMaterial({ color: 0xffd7b5 })
-    );
-    remoteHead.position.y = 1.85;
+
+    // Goofy Roblox-style opponent model with chunky parts and a real collision radius.
+    const remoteHitboxRadius = 0.62;
+    const remoteHitboxHeight = 1.95;
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd7a8 });
+    const shirtMat = new THREE.MeshLambertMaterial({ color: 0x31a6ff });
+    const pantsMat = new THREE.MeshLambertMaterial({ color: 0x2d3aff });
+    const shoeMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const hairMat = new THREE.MeshLambertMaterial({ color: 0x3b2114 });
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const smileMat = new THREE.MeshLambertMaterial({ color: 0xff4d78 });
+
+    const remoteBody = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.9, 0.42), shirtMat);
+    remoteBody.position.y = 1.05;
+
+    const remoteHead = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), skinMat);
+    remoteHead.position.y = 1.83;
+
+    const remoteHair = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.18, 0.78), hairMat);
+    remoteHair.position.y = 2.24;
+
+    const remoteLeftEye = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.025), eyeMat);
+    remoteLeftEye.position.set(-0.16, 1.9, -0.373);
+    const remoteRightEye = remoteLeftEye.clone();
+    remoteRightEye.position.x = 0.16;
+
+    const remoteSmile = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.055, 0.03), smileMat);
+    remoteSmile.position.set(0, 1.72, -0.377);
+
+    const remoteLeftArm = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.92, 0.28), skinMat);
+    remoteLeftArm.position.set(-0.62, 1.05, 0);
+    remoteLeftArm.rotation.z = 0.12;
+    const remoteRightArm = remoteLeftArm.clone();
+    remoteRightArm.position.x = 0.62;
+    remoteRightArm.rotation.z = -0.35;
+
+    const remoteLeftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.82, 0.30), pantsMat);
+    remoteLeftLeg.position.set(-0.22, 0.35, 0);
+    const remoteRightLeg = remoteLeftLeg.clone();
+    remoteRightLeg.position.x = 0.22;
+
+    const remoteLeftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.42), shoeMat);
+    remoteLeftShoe.position.set(-0.22, -0.08, -0.04);
+    const remoteRightShoe = remoteLeftShoe.clone();
+    remoteRightShoe.position.x = 0.22;
+
     const remoteSword = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.12, 1.2),
+      new THREE.BoxGeometry(0.14, 0.14, 1.25),
       new THREE.MeshLambertMaterial({ color: 0xdbe7f2 })
     );
-    remoteSword.position.set(0.45, 1.05, -0.45);
+    remoteSword.position.set(0.72, 1.05, -0.48);
     remoteSword.rotation.x = Math.PI / 7;
+    remoteSword.rotation.z = -0.25;
     remoteSword.visible = false;
-    remotePlayerGroup.add(remoteBody, remoteHead, remoteSword);
+
+    remotePlayerGroup.add(
+      remoteBody, remoteHead, remoteHair, remoteLeftEye, remoteRightEye, remoteSmile,
+      remoteLeftArm, remoteRightArm, remoteLeftLeg, remoteRightLeg, remoteLeftShoe, remoteRightShoe, remoteSword
+    );
     scene.add(remotePlayerGroup);
 
     function setMultiplayerStatus(msg) {
@@ -972,7 +1013,7 @@
         remoteSword.visible = true;
         setTimeout(() => { remoteSword.visible = false; }, 180);
         const distance = remotePlayerGroup.position.distanceTo(state.pos);
-        if (distance < 2.4) {
+        if (distance < 2.4 + remoteHitboxRadius) {
           const armorReduction = equipment.armor === ITEM.DIAMOND_ARMOR ? 0.55 : equipment.armor === ITEM.IRON_ARMOR ? 0.35 : equipment.armor === ITEM.LEATHER_ARMOR ? 0.15 : 0;
           const damage = Math.max(1, Math.round((msg.damage || 3) * (1 - armorReduction)));
           equipment.health = Math.max(0, equipment.health - damage);
@@ -1013,6 +1054,25 @@
 
     function sendNetworkAttack() {
       sendNet("attack", { damage: weaponDamage(), weaponMode: equipment.weaponMode });
+    }
+
+    function resolveRemotePlayerCollision() {
+      if (!remotePlayerGroup.visible || !NET.connected) return;
+
+      const dx = state.pos.x - remotePlayerGroup.position.x;
+      const dz = state.pos.z - remotePlayerGroup.position.z;
+      const dy = Math.abs((state.pos.y + PLAYER.height * 0.5) - (remotePlayerGroup.position.y + remoteHitboxHeight * 0.5));
+      const minDist = PLAYER.radius + remoteHitboxRadius;
+      const distSq = dx * dx + dz * dz;
+
+      if (dy < remoteHitboxHeight && distSq > 0.0001 && distSq < minDist * minDist) {
+        const dist = Math.sqrt(distSq);
+        const push = minDist - dist;
+        state.pos.x += (dx / dist) * push;
+        state.pos.z += (dz / dist) * push;
+        state.vel.x = 0;
+        state.vel.z = 0;
+      }
     }
 
     hostRoomBtn?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hostRoom(); });
@@ -1605,7 +1665,7 @@
           return;
         }
 
-        if (!craftPanel.classList.contains("open")) {
+        if (!craftPanel.classList.contains("open") && !codingPanel.classList.contains("open")) {
           showMenu();
         }
       } else {
@@ -1973,14 +2033,18 @@
     }
 
     function update(dt) {
-      const camDir = new THREE.Vector3();
-      camera.getWorldDirection(camDir);
+      // Use yaw-based movement so W and S stay reliable even when looking up/down.
+      const forward = new THREE.Vector3(
+  -Math.sin(state.yaw),
+  0,
+  -Math.cos(state.yaw)
+);
 
-      camDir.y = 0;
-      if (camDir.lengthSq() > 0) camDir.normalize();
-
-      const forward = camDir;
-      const right = new THREE.Vector3(-forward.z, 0, forward.x);
+const right = new THREE.Vector3(
+  Math.cos(state.yaw),
+  0,
+  -Math.sin(state.yaw)
+);
 
       let wish = new THREE.Vector3(0, 0, 0);
       if (keys.w) wish.add(forward);
@@ -2014,6 +2078,7 @@
       }
 
       collideMove(state.pos, state.vel, dt);
+      resolveRemotePlayerCollision();
 
       camera.rotation.order = "YXZ";
       camera.rotation.y = state.yaw;
@@ -2178,6 +2243,7 @@
       if (open) {
         initBlockCoding();
         setTimeout(() => Blockly.svgResize(workspace), 50);
+        suppressNextPointerUnlockMenu = true;
         if (document.pointerLockElement) document.exitPointerLock();
       } else {
         returnToGameFromCoding();
