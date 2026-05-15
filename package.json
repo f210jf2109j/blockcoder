@@ -1,0 +1,13 @@
+{
+  "name": "voxel-pvp-multiplayer",
+  "version": "1.0.0",
+  "description": "Voxel PVP classroom game with WebRTC P2P multiplayer and Socket.IO signaling.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "socket.io": "^4.7.5"
+  }
+}
