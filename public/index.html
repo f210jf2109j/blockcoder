@@ -919,8 +919,14 @@
     async function ensurePeer(asHost) {
       closePeerConnection();
       NET.isHost = asHost;
+      const response = await fetch(
+        "https://blockcoder.metered.live/api/v1/turn/credentials?apiKey=a115ec8990dfceade12f30bf0e83c1f51c9e"
+      );
+
+      const iceServers = await response.json();
+
       NET.peer = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        iceServers: iceServers
       });
       NET.peer.onicecandidate = (event) => {
         if (event.candidate && NET.socket && NET.room) {
