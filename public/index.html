@@ -923,14 +923,43 @@
         "https://blockcoder.metered.live/api/v1/turn/credentials?apiKey=a115ec8990dfceade12f30bf0e83c1f51c9e"
       );
 
-      const iceServers = await response.json();
+      const rawIceServers = await response.json();
+
+      // School networks often block UDP, even when TURN is working.
+      // This keeps only TURN over TCP/TLS candidates and removes UDP/STUN candidates.
+      const iceServers = rawIceServers
+        .map((server) => {
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+
+          const tcpUrls = urls.filter((url) => {
+            if (!url) return false;
+            return (
+              url.startsWith("turns:") ||
+              url.includes("transport=tcp")
+            );
+          });
+
+          if (tcpUrls.length === 0) return null;
+
+          return {
+            ...server,
+            urls: tcpUrls.length === 1 ? tcpUrls[0] : tcpUrls
+          };
+        })
+        .filter(Boolean);
+
+      console.log("Raw ICE servers from Metered:", rawIceServers);
+      console.log("TCP/TLS-only ICE servers being used:", iceServers);
+
+      if (iceServers.length === 0) {
+        console.error("No TCP/TLS TURN servers were found. Check Metered settings.");
+      }
 
       NET.peer = new RTCPeerConnection({
         iceServers: iceServers,
-        iceTransportPolicy: "relay"
+        iceTransportPolicy: "relay",
+        iceCandidatePoolSize: 0
       });
-
-      console.log("ICE servers:", iceServers);
 
       NET.peer.onicegatheringstatechange = () => {
         console.log("ICE gathering state:", NET.peer.iceGatheringState);
