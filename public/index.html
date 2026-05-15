@@ -967,14 +967,48 @@
         }
       };
       NET.peer.onconnectionstatechange = () => {
-        if (["failed", "disconnected", "closed"].includes(NET.peer.connectionState)) closePeerConnection();
+
+        console.log(
+          "Peer connection state:",
+          NET.peer.connectionState
+        );
+
+        if (
+          NET.peer.connectionState === "connected"
+        ) {
+
+          console.log("P2P FULLY CONNECTED");
+
+          NET.connected = true;
+
+          setMultiplayerStatus(
+            "P2P CONNECTED"
+          );
+        }
+
+        if (
+          ["failed", "disconnected", "closed"]
+          .includes(NET.peer.connectionState)
+        ) {
+
+          console.warn(
+            "WebRTC failed or disconnected."
+          );
+
+          closePeerConnection();
+        }
       };
       NET.peer.ondatachannel = (event) => {
         NET.channel = event.channel;
         setupDataChannel();
       };
       if (asHost) {
-        NET.channel = NET.peer.createDataChannel("game", { ordered: false, maxRetransmits: 0 });
+        NET.channel = NET.peer.createDataChannel(
+          "game",
+          {
+            ordered: true
+          }
+        );
         setupDataChannel();
       }
     }
