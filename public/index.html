@@ -1,1 +1,2429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Single-File Voxel PVP Sandbox</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    canvas { display: block; }
+    .hud {
+      position: fixed; left: 0; right: 0; top: 0; pointer-events: none;
+      color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.7);
+      padding: 10px 12px; font-size: 14px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .hud .left { display: grid; gap: 6px; }
+    .hud .right { text-align: right; opacity: .95; }
 
+    .crosshair {
+      position: fixed; left: 50%; top: 50%; width: 18px; height: 18px;
+      margin-left: -9px; margin-top: -9px; pointer-events: none;
+    }
+    .crosshair:before, .crosshair:after {
+      content: ""; position: absolute; left: 50%; top: 50%;
+      background: rgba(255,255,255,.95);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 6px rgba(0,0,0,.6);
+    }
+    .crosshair:before { width: 18px; height: 2px; }
+    .crosshair:after  { width: 2px; height: 18px; }
+
+    .hotbar {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      display: flex; gap: 8px; pointer-events: none;
+      background: rgba(0,0,0,.35); padding: 8px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.18);
+      backdrop-filter: blur(6px);
+    }
+    .slot {
+      width: 48px; height: 48px; border-radius: 10px;
+      border: 2px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.06);
+      display: grid; place-items: center;
+      position: relative;
+    }
+    .slot.selected { border-color: rgba(255,255,255,.9); box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset; }
+    .slot .key { position: absolute; left: 6px; top: 4px; font-size: 11px; opacity: .9; }
+    .slot .count { position: absolute; right: 6px; bottom: 4px; font-size: 12px; opacity: .95; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
+
+    .swatch {
+      width: 28px; height: 28px; border-radius: 8px;
+      border: 1px solid rgba(0,0,0,.55);
+      box-shadow: 0 3px 10px rgba(0,0,0,.35);
+      background-size: cover;
+      image-rendering: pixelated;
+    }
+    .handIcon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      font-size: 16px;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,.45), rgba(0,0,0,.92));
+      padding: 24px;
+      text-align: center;
+      z-index: 50;
+      pointer-events: auto;
+    }
+    .card {
+      max-width: 860px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      border-radius: 14px;
+      padding: 18px 18px 14px;
+      box-shadow: 0 14px 50px rgba(0,0,0,.45);
+      backdrop-filter: blur(8px);
+    }
+    .card h1 { margin: 0 0 8px; font-size: 20px; font-weight: 700; }
+    .card p { margin: 8px 0; opacity: .92; line-height: 1.45; }
+    .btnrow { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.10);
+      color: #fff; padding: 10px 12px; border-radius: 10px;
+      cursor: pointer; font-weight: 650;
+    }
+    button:hover { background: rgba(255,255,255,.16); }
+    .small { font-size: 12px; opacity: .85; margin-top: 10px; }
+    .warn { color: #ffd7a8; }
+
+
+    .codingPanel {
+      position: fixed; right: 12px; top: 88px; width: min(920px, calc(100vw - 24px)); height: min(720px, calc(100vh - 104px));
+      background: rgba(14,18,28,.92); color: #fff; border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px; overflow: hidden; z-index: 5; box-shadow: 0 14px 50px rgba(0,0,0,.45);
+      backdrop-filter: blur(8px); display: none; flex-direction: column; pointer-events: auto;
+    }
+    .codingPanel.open { display: flex; }
+    .codingHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .codingHeader strong { font-size: 14px; }
+    .codingTools { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.10); }
+    .codingTools button, .codingHeader button, .codingToggle {
+      pointer-events: auto; font-size: 12px; padding: 7px 9px; border-radius: 9px;
+    }
+    .codingWorkspace { flex: 1; min-height: 0; background: #f7f7f7; }
+    .codingToggle {
+      position: fixed; right: 12px; top: 74px; z-index: 6;
+      background: rgba(0,0,0,.62); border: 1px solid rgba(255,255,255,.22);
+    }
+    .codingHint { font-size: 11px; opacity: .82; padding: 7px 10px; border-top: 1px solid rgba(255,255,255,.10); }
+
+    /* More Minecraft-like block coding texture and vibrancy */
+    .codingPanel {
+      background:
+        linear-gradient(135deg, rgba(34,52,38,.96), rgba(18,25,32,.96)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 6px, rgba(0,0,0,.035) 6px 12px);
+      border: 2px solid rgba(115,170,75,.55);
+      box-shadow: 0 18px 60px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06);
+    }
+    .codingHeader {
+      background: linear-gradient(180deg, rgba(80,125,55,.75), rgba(36,70,43,.75));
+      border-bottom: 2px solid rgba(0,0,0,.25);
+    }
+    .codingTools {
+      background: rgba(14,22,18,.38);
+    }
+    .codingTools button, .codingHeader button, .codingToggle {
+      background: linear-gradient(180deg, rgba(91,151,65,.96), rgba(50,99,48,.96));
+      border: 1px solid rgba(220,255,185,.42);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,.18), 0 3px 0 rgba(17,38,21,.9);
+      text-shadow: 0 1px 1px rgba(0,0,0,.65);
+    }
+    .codingTools button:hover, .codingHeader button:hover, .codingToggle:hover {
+      filter: brightness(1.14) saturate(1.2);
+    }
+    .codingWorkspace {
+      background:
+        linear-gradient(rgba(255,255,255,.68), rgba(255,255,255,.68)),
+        repeating-linear-gradient(0deg, rgba(62,130,47,.16) 0 16px, rgba(49,103,37,.16) 16px 32px),
+        repeating-linear-gradient(90deg, rgba(124,92,46,.12) 0 16px, rgba(92,67,34,.12) 16px 32px);
+    }
+    .blocklyMainBackground {
+      stroke: rgba(67,118,55,.75) !important;
+      stroke-width: 2px !important;
+      fill: rgba(220,242,203,.96) !important;
+    }
+    .blocklyFlyoutBackground {
+      fill: rgba(238,248,232,.98) !important;
+      stroke: rgba(50,95,42,.35) !important;
+      stroke-width: 2px !important;
+    }
+    .blocklyToolboxDiv {
+      background:
+        linear-gradient(180deg, rgba(39,67,34,.98), rgba(23,37,22,.98)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.06) 0 5px, rgba(0,0,0,.08) 5px 10px) !important;
+      border-right: 2px solid rgba(154,215,106,.45);
+    }
+    .blocklyTreeRow {
+      border-radius: 8px;
+      margin: 4px 8px;
+      padding: 5px 8px !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.25);
+    }
+    .blocklyTreeSelected {
+      background: linear-gradient(180deg, #71c94f, #347b35) !important;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,.25), 0 2px 0 rgba(0,0,0,.35);
+    }
+    .blocklyBlockCanvas .blocklyPath,
+    .blocklyFlyout .blocklyPath {
+      filter: url(#minecraftBlockTexture) saturate(1.55) brightness(1.10) drop-shadow(0 4px 0 rgba(0,0,0,.24));
+      stroke: rgba(255,255,255,.38);
+      stroke-width: 1.25px;
+    }
+    .blocklyBlockCanvas .blocklyPathLight,
+    .blocklyFlyout .blocklyPathLight {
+      stroke: rgba(255,255,255,.62) !important;
+      stroke-width: 1.5px !important;
+    }
+    .blocklyBlockCanvas .blocklyPathDark,
+    .blocklyFlyout .blocklyPathDark {
+      stroke: rgba(0,0,0,.34) !important;
+      stroke-width: 1.5px !important;
+    }
+    .blocklyEditableText > rect,
+    .blocklyFieldDropdown > rect {
+      fill: rgba(255,255,255,.22) !important;
+      stroke: rgba(255,255,255,.28) !important;
+    }
+    .blocklyText {
+      fill: #ffffff !important;
+      paint-order: stroke;
+      stroke: rgba(0,0,0,.45);
+      stroke-width: 2px;
+      stroke-linejoin: round;
+      text-shadow: 0 1px 0 rgba(0,0,0,.55);
+      font-weight: 750;
+      letter-spacing: .1px;
+    }
+    .blocklyFlyout .blocklyText { stroke-width: 1.8px; }
+
+
+    /* Minecraft-style pause/settings menu */
+    .overlay {
+      background: rgba(0,0,0,.68) !important;
+      place-items: center !important;
+      font-family: 'Trebuchet MS', system-ui, sans-serif;
+      z-index: 9999 !important;
+      pointer-events: auto !important;
+    }
+    .card.mcMenu {
+      pointer-events: auto;
+      width: min(640px, calc(100vw - 32px));
+      max-width: 640px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      padding: 0;
+      color: #fff;
+      text-shadow: 2px 2px 0 rgba(0,0,0,.85);
+    }
+    .card.mcMenu h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 28px;
+      letter-spacing: .5px;
+    }
+    .mcMenuGrid {
+      width: 460px;
+      max-width: 100%;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+    }
+    .mcMenuGrid .wide { grid-column: 1 / -1; }
+    .mcButton, .mcMenuGrid button {
+      height: 42px;
+      border-radius: 0;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: .2px;
+      text-shadow: 2px 2px 0 rgba(0,0,0,.8);
+      border: 2px solid #171717;
+      border-top-color: #e2e2e2;
+      border-left-color: #e2e2e2;
+      border-right-color: #242424;
+      border-bottom-color: #242424;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 45%, rgba(0,0,0,.24)),
+        repeating-linear-gradient(90deg, #858585 0 5px, #777 5px 10px, #8f8f8f 10px 15px),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 4px, rgba(0,0,0,.08) 4px 8px);
+      box-shadow: inset 2px 2px 0 rgba(255,255,255,.2), inset -2px -2px 0 rgba(0,0,0,.3);
+    }
+    .mcButton:hover, .mcMenuGrid button:hover {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.04) 45%, rgba(0,0,0,.18)),
+        repeating-linear-gradient(90deg, #9a9a9a 0 5px, #898989 5px 10px, #a1a1a1 10px 15px);
+      border-top-color: #f4f4f4;
+      border-left-color: #f4f4f4;
+    }
+    .mcMenuNote {
+      margin: 16px auto 0;
+      width: 460px;
+      max-width: 100%;
+      font-size: 12px;
+      color: #d7d7d7;
+      line-height: 1.45;
+    }
+
+    .hotbar { max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; }
+
+
+    .rpgPanel {
+      position: fixed; left: 12px; bottom: 86px; z-index: 4; color: #fff;
+      background: rgba(18,18,18,.62); border: 2px solid rgba(255,255,255,.18);
+      box-shadow: 0 8px 24px rgba(0,0,0,.38), inset 0 0 0 2px rgba(0,0,0,.28);
+      padding: 8px; border-radius: 8px; min-width: 260px; pointer-events: none;
+      font-size: 12px; text-shadow: 0 2px 4px #000;
+    }
+    .rpgPanel .row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:3px 0; }
+    .heartbar, .armorbar { height: 10px; flex: 1; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.18); }
+    .heartbar > div { height: 100%; background: linear-gradient(#ff6464,#b91515); }
+    .armorbar > div { height: 100%; background: linear-gradient(#d8eefc,#6aa0c8); }
+    .craftPanel {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 8;
+      width: min(760px, calc(100vw - 28px)); max-height: min(620px, calc(100vh - 36px)); overflow: auto;
+      color: #fff; display: none; padding: 14px; border-radius: 10px;
+      border: 3px solid #2f2f2f; box-shadow: 0 24px 80px rgba(0,0,0,.75);
+      background: linear-gradient(135deg,#3d3d3d,#1b1b1b), repeating-linear-gradient(45deg,rgba(255,255,255,.04) 0 8px,rgba(0,0,0,.05) 8px 16px);
+      pointer-events: auto; text-shadow: 0 2px 4px #000;
+    }
+    .craftPanel.open { display:block; }
+    .craftTop { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+    .craftGrid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+    .recipeCard {
+      background: linear-gradient(#757575,#4d4d4d); border: 2px solid #1f1f1f; border-top-color:#a9a9a9; border-left-color:#a9a9a9;
+      padding: 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+    .recipeCard strong { display:block; margin-bottom:5px; }
+    .recipeCard button { width: 100%; margin-top: 8px; border-radius: 3px; background: linear-gradient(#8f8f8f,#5f5f5f); }
+    .recipeCard button:disabled { opacity:.45; cursor:not-allowed; }
+    .invLine { font-size:12px; opacity:.92; margin-top:4px; }
+    .heldWeapon {
+      position: fixed;
+      right: -45px;
+      bottom: -70px;
+      width: 310px;
+      height: 310px;
+      pointer-events: none;
+      z-index: 6;
+      transform: rotate(-42deg) scale(2.05);
+      transform-origin: 78% 92%;
+      image-rendering: pixelated;
+      filter: drop-shadow(16px 20px 0 rgba(0,0,0,.48));
+      display: none;
+    }
+    .heldWeapon.show { display: block; }
+    .heldWeapon.swing { animation: weaponSwing .18s ease-out; }
+    @keyframes weaponSwing {
+      0% {
+        transform: rotate(-42deg) scale(2.05);
+      }
+      45% {
+        transform: rotate(-68deg) scale(2.15);
+      }
+      100% {
+        transform: rotate(-42deg) scale(2.05);
+      }
+    }
+    .heldWeapon .pixel { position:absolute; box-sizing:border-box; }
+    .heldWeapon.sword .blade { left:132px; top:3px; width:58px; height:210px; background:linear-gradient(90deg,#f7fbff 0%,#d8e0ea 32%,#8993a2 66%,#f9fbff 100%); border:8px solid #20202a; box-shadow:inset -14px 0 #6d7482, inset 10px 0 rgba(255,255,255,.55); }
+    .heldWeapon.sword .tip { left:132px; top:-34px; width:58px; height:58px; background:#eef5ff; border-left:8px solid #20202a; border-top:8px solid #20202a; transform:rotate(45deg); box-shadow:inset -10px 0 #9aa5b4; }
+    .heldWeapon.sword .guard { left:76px; top:202px; width:172px; height:44px; background:#4d3624; border:8px solid #1b120d; box-shadow:inset 0 12px #815a3c; }
+    .heldWeapon.sword .grip { left:144px; top:234px; width:38px; height:96px; background:#2a1a14; border:8px solid #0e0907; box-shadow:inset 10px 0 #684026; }
+    .floatText { position: fixed; left: 50%; top: 44%; transform: translate(-50%,-50%); color:#fff; font-weight:800; text-shadow:0 2px 8px #000; pointer-events:none; z-index:10; animation: floatFade .8s ease forwards; }
+    @keyframes floatFade { from { opacity:1; transform:translate(-50%,-35%);} to { opacity:0; transform:translate(-50%,-85%);} }
+
+  
+    /* MENU_POINTER_FIX_V3 */
+    #overlay {
+      z-index: 9999 !important;
+      pointer-events: auto !important;
+    }
+    #overlay .mcMenu,
+    #overlay button {
+      pointer-events: auto !important;
+    }
+
+    /* FINAL_MENU_CLICK_FIX */
+    #overlay {
+      z-index: 9999 !important;
+      pointer-events: auto !important;
+    }
+    #overlay .mcMenu,
+    #overlay button {
+      pointer-events: auto !important;
+    }
+
+
+    /* P2P multiplayer panel inside ESC menu */
+    .multiplayerBox {
+      width: 460px;
+      max-width: 100%;
+      margin: 14px auto 0;
+      padding: 10px;
+      border: 2px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.38);
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,.28);
+      text-align: left;
+    }
+    .multiplayerBox h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      text-align: center;
+      color: #fff;
+    }
+    .multiplayerControls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .multiplayerControls .wide { grid-column: 1 / -1; }
+    .multiplayerControls input {
+      grid-column: 1 / -1;
+      height: 34px;
+      border-radius: 0;
+      border: 2px solid #171717;
+      padding: 0 10px;
+      font-weight: 700;
+      color: #111;
+      background: #eee;
+      box-sizing: border-box;
+    }
+    .multiplayerStatus {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #d7d7d7;
+      text-align: center;
+    }
+
+</style>
+
+
+  <script src="https://unpkg.com/blockly@10.4.3/blockly.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div class="hud">
+    <div class="left">
+      <div><b>Voxel PVP Sandbox</b> . Single HTML . Pointer Lock</div>
+      <div id="status">Loading…</div>
+    </div>
+    <div class="right">
+      <div><b>W</b> forward . <b>S</b> back . <b>A</b> left . <b>D</b> right</div>
+      <div><b>Space</b> jump . <b>Shift</b> sprint . <b>E</b> fly toggle</div>
+      <div><b>Left</b> break/PVP attack . <b>Right</b> place consume . <b>Q</b> switch hand/sword</div>
+      <div><b>Mouse Wheel / 1-9,0</b> select . <b>B</b> blocks . <b>R</b> respawn . <b>F</b> save now</div>
+    </div>
+  </div>
+
+  <div class="crosshair"></div>
+  <div class="hotbar" id="hotbar"></div>
+  <div class="heldWeapon" id="heldWeapon"></div>
+
+
+
+  <button class="codingToggle" id="codingToggle">Blocks</button>
+  <div class="codingPanel" id="codingPanel">
+    <div class="codingHeader">
+      <strong>MakeCode Minecraft Style Blocks</strong>
+      <button id="codingClose">Close</button>
+    </div>
+    <div class="codingTools">
+      <button id="runBlocksBtn">Run</button>
+      <button id="stopBlocksBtn">Stop</button>
+      <button id="exampleBlocksBtn">Example</button>
+      <button id="clearBlocksBtn">Clear</button>
+    </div>
+    <div id="blocklyDiv" class="codingWorkspace"></div>
+    <div class="codingHint">Press B to open or close. Includes Minecraft MakeCode style categories adapted to this voxel sandbox.</div>
+  </div>
+
+  <xml id="toolbox" style="display:none">
+    <category name="Events" colour="35">
+      <block type="on_start"></block>
+      <block type="on_key_pressed"></block>
+      <block type="on_tick"></block>
+    </category>
+    <category name="Player" colour="210">
+      <block type="player_say"></block>
+      <block type="move_direction"><value name="STEPS"><shadow type="math_number"><field name="NUM">2</field></shadow></value></block>
+      <block type="turn_degrees"><value name="DEG"><shadow type="math_number"><field name="NUM">90</field></shadow></value></block>
+      <block type="look_direction"></block>
+      <block type="jump_action"></block>
+      <block type="set_fly"></block>
+      <block type="teleport_relative"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">5</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="teleport_absolute"><value name="X"><shadow type="math_number"><field name="NUM">48</field></shadow></value><value name="Y"><shadow type="math_number"><field name="NUM">25</field></shadow></value><value name="Z"><shadow type="math_number"><field name="NUM">48</field></shadow></value></block>
+      <block type="wait_seconds"><value name="SECONDS"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block>
+      <block type="player_coord"></block>
+      <block type="player_position"></block>
+    </category>
+    <category name="Blocks" colour="120">
+      <block type="select_block_type"></block>
+      <block type="give_block"><value name="COUNT"><shadow type="math_number"><field name="NUM">10</field></shadow></value></block>
+      <block type="place_action"></block>
+      <block type="break_action"></block>
+      <block type="place_relative"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block>
+      <block type="set_relative_block"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">-1</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="set_world_block"><value name="X"><shadow type="math_number"><field name="NUM">48</field></shadow></value><value name="Y"><shadow type="math_number"><field name="NUM">18</field></shadow></value><value name="Z"><shadow type="math_number"><field name="NUM">48</field></shadow></value></block>
+      <block type="fill_blocks"><value name="X1"><shadow type="math_number"><field name="NUM">-2</field></shadow></value><value name="Y1"><shadow type="math_number"><field name="NUM">-1</field></shadow></value><value name="Z1"><shadow type="math_number"><field name="NUM">-2</field></shadow></value><value name="X2"><shadow type="math_number"><field name="NUM">2</field></shadow></value><value name="Y2"><shadow type="math_number"><field name="NUM">-1</field></shadow></value><value name="Z2"><shadow type="math_number"><field name="NUM">2</field></shadow></value></block>
+      <block type="replace_blocks"><value name="X1"><shadow type="math_number"><field name="NUM">-3</field></shadow></value><value name="Y1"><shadow type="math_number"><field name="NUM">-2</field></shadow></value><value name="Z1"><shadow type="math_number"><field name="NUM">-3</field></shadow></value><value name="X2"><shadow type="math_number"><field name="NUM">3</field></shadow></value><value name="Y2"><shadow type="math_number"><field name="NUM">2</field></shadow></value><value name="Z2"><shadow type="math_number"><field name="NUM">3</field></shadow></value></block>
+      <block type="block_ahead_is"></block>
+      <block type="relative_block_is"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">-1</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="get_relative_block"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">-1</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="inventory_count"></block>
+    </category>
+    <category name="Shapes" colour="65">
+      <block type="shape_line"><value name="LENGTH"><shadow type="math_number"><field name="NUM">8</field></shadow></value></block>
+      <block type="shape_wall"><value name="WIDTH"><shadow type="math_number"><field name="NUM">6</field></shadow></value><value name="HEIGHT"><shadow type="math_number"><field name="NUM">4</field></shadow></value></block>
+      <block type="shape_floor"><value name="WIDTH"><shadow type="math_number"><field name="NUM">7</field></shadow></value><value name="DEPTH"><shadow type="math_number"><field name="NUM">7</field></shadow></value></block>
+      <block type="shape_tower"><value name="HEIGHT"><shadow type="math_number"><field name="NUM">8</field></shadow></value></block>
+      <block type="shape_sphere"><value name="RADIUS"><shadow type="math_number"><field name="NUM">3</field></shadow></value></block>
+    </category>
+    <category name="Positions" colour="190">
+      <block type="make_position"><value name="X"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="relative_position"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block>
+      <block type="position_axis"></block>
+    </category>
+    <category name="Loops" colour="290">
+      <block type="repeat_times"><value name="TIMES"><shadow type="math_number"><field name="NUM">4</field></shadow></value></block>
+      <block type="forever_loop"></block>
+      <block type="while_loop"></block>
+      <block type="for_loop"><value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value><value name="TO"><shadow type="math_number"><field name="NUM">5</field></shadow></value></block>
+    </category>
+    <category name="Logic" colour="260">
+      <block type="if_do"></block>
+      <block type="if_else_do"></block>
+      <block type="not_bool"></block>
+      <block type="and_or_bool"></block>
+      <block type="compare_numbers"><value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value><value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block>
+      <block type="boolean_value"></block>
+    </category>
+    <category name="Math" colour="230">
+      <block type="math_number"><field name="NUM">0</field></block>
+      <block type="math_arithmetic"></block>
+      <block type="math_mod"><value name="A"><shadow type="math_number"><field name="NUM">10</field></shadow></value><value name="B"><shadow type="math_number"><field name="NUM">2</field></shadow></value></block>
+      <block type="random_int"><value name="MIN"><shadow type="math_number"><field name="NUM">1</field></shadow></value><value name="MAX"><shadow type="math_number"><field name="NUM">10</field></shadow></value></block>
+      <block type="round_number"></block>
+      <block type="math_single"><value name="VALUE"><shadow type="math_number"><field name="NUM">-5</field></shadow></value></block>
+      <block type="math_minmax"><value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value><value name="B"><shadow type="math_number"><field name="NUM">5</field></shadow></value></block>
+    </category>
+    <category name="Variables" colour="330">
+      <block type="set_named_var"><value name="VALUE"><shadow type="math_number"><field name="NUM">0</field></shadow></value></block>
+      <block type="change_named_var"><value name="AMOUNT"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block>
+      <block type="get_named_var"></block>
+    </category>
+  </xml>
+
+  <div class="overlay" id="overlay">
+    <div class="card mcMenu">
+      <h1>Game Menu</h1>
+      <div class="mcMenuGrid">
+        <button id="playBtn" class="wide">Back to Game</button>
+        <button id="openBlocksMenuBtn">Block Coding</button>
+        <button id="saveMenuBtn">Save World</button>
+        <button id="flyMenuBtn">Toggle Fly</button>
+        <button id="respawnMenuBtn">Respawn</button>
+        <button id="multiplayerMenuBtn" class="wide">Multiplayer / PVP Connect</button>
+        <button id="resetBtn" class="wide">Reset World</button>
+      </div>
+      <div class="multiplayerBox" id="multiplayerBox" style="display:none;">
+        <h2>Classroom P2P Multiplayer</h2>
+        <div class="multiplayerControls">
+          <input id="roomCodeInput" placeholder="Room code" maxlength="12" />
+          <button id="hostRoomBtn">Host Room</button>
+          <button id="joinRoomBtn">Join Room</button>
+          <button id="copyRoomBtn">Copy Code</button>
+          <button id="disconnectRoomBtn">Disconnect</button>
+        </div>
+        <div class="multiplayerStatus" id="multiplayerStatus">Not connected. Host creates a room code. Partner joins with that code.</div>
+      </div>
+      <div class="mcMenuNote">Settings for this classroom PVP sandbox: B opens block coding, F saves, R respawns, E toggles fly, left click mines or swings your weapon, right click places.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+
+    const WORLD = {
+      sizeX: 96,
+      sizeZ: 96,
+      sizeY: 48,
+      seaLevel: 18,
+      seed: loadOrCreateSeed(),
+      viewDistance: 90
+    };
+
+    const CHUNK = 16;
+
+    const BLOCK = {
+      AIR: 0,
+      GRASS: 1,
+      DIRT: 2,
+      STONE: 3,
+      SAND: 4,
+      WOOD: 5,
+      LEAVES: 6,
+      COAL_ORE: 7,
+      IRON_ORE: 8,
+      DIAMOND_ORE: 9
+    };
+
+    const HOTBAR_IDS = [BLOCK.AIR, BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND, BLOCK.WOOD, BLOCK.LEAVES, BLOCK.COAL_ORE, BLOCK.IRON_ORE, BLOCK.DIAMOND_ORE];
+    const PLACEABLE_IDS = HOTBAR_IDS.filter(id => id !== BLOCK.AIR);
+
+    const BLOCK_META = {
+      [BLOCK.GRASS]:  { name: "Grass",  color: 0x55b948 },
+      [BLOCK.DIRT]:   { name: "Dirt",   color: 0x8a5a32 },
+      [BLOCK.STONE]:  { name: "Stone",  color: 0x969696 },
+      [BLOCK.SAND]:   { name: "Sand",   color: 0xe2ca79 },
+      [BLOCK.WOOD]:   { name: "Wood",   color: 0x9a612f },
+      [BLOCK.LEAVES]: { name: "Leaves", color: 0x37a13c },
+      [BLOCK.COAL_ORE]: { name: "Coal Ore", color: 0x5f6265 },
+      [BLOCK.IRON_ORE]: { name: "Iron Ore", color: 0xb98b66 },
+      [BLOCK.DIAMOND_ORE]: { name: "Diamond Ore", color: 0x55d8e6 }
+    };
+
+    const PLAYER = {
+      height: 1.75,
+      radius: 0.35,
+      eye: 1.55,
+      walkSpeed: 4.5,
+      sprintSpeed: 7.0,
+      flySpeed: 10.5,
+      jumpVel: 6.6,
+      gravity: 18.0,
+      maxFall: 38.0
+    };
+
+    const overlay = document.getElementById("overlay");
+    const playBtn = document.getElementById("playBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const openBlocksMenuBtn = document.getElementById("openBlocksMenuBtn");
+    const saveMenuBtn = document.getElementById("saveMenuBtn");
+    const flyMenuBtn = document.getElementById("flyMenuBtn");
+    const respawnMenuBtn = document.getElementById("respawnMenuBtn");
+    const multiplayerMenuBtn = document.getElementById("multiplayerMenuBtn");
+    const multiplayerBox = document.getElementById("multiplayerBox");
+    const roomCodeInput = document.getElementById("roomCodeInput");
+    const hostRoomBtn = document.getElementById("hostRoomBtn");
+    const joinRoomBtn = document.getElementById("joinRoomBtn");
+    const copyRoomBtn = document.getElementById("copyRoomBtn");
+    const disconnectRoomBtn = document.getElementById("disconnectRoomBtn");
+    const multiplayerStatus = document.getElementById("multiplayerStatus");
+    const statusEl = document.getElementById("status");
+    const hotbarEl = document.getElementById("hotbar");
+    const heldWeaponEl = document.getElementById("heldWeapon");
+
+    let suppressNextPointerUnlockMenu = false;
+
+    function showMenu() {
+      overlay.style.display = "grid";
+      overlay.style.pointerEvents = "auto";
+      overlay.style.zIndex = "9999";
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+    }
+
+    function hideMenu() {
+      overlay.style.display = "none";
+      try {
+        renderer.domElement.requestPointerLock();
+      } catch (err) {
+        // Pointer lock can fail if the browser blocks it.
+      }
+    }
+
+    function wireMenuButtons() {
+      const stop = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
+      if (playBtn) {
+        playBtn.onclick = (e) => {
+          stop(e);
+          hideMenu();
+        };
+      }
+
+      if (resetBtn) {
+        resetBtn.onclick = (e) => {
+          stop(e);
+          if (confirm("Reset this world? This clears saved edits.")) {
+            localStorage.removeItem(SAVE_KEY);
+            location.reload();
+          }
+        };
+      }
+
+      if (openBlocksMenuBtn) {
+        openBlocksMenuBtn.onclick = (e) => {
+          stop(e);
+          overlay.style.display = "none";
+          if (typeof openCodingPanel === "function") {
+            openCodingPanel();
+          }
+        };
+      }
+
+      if (saveMenuBtn) {
+        saveMenuBtn.onclick = (e) => {
+          stop(e);
+          if (typeof saveNow === "function") {
+            saveNow();
+          }
+        };
+      }
+
+      if (flyMenuBtn) {
+        flyMenuBtn.onclick = (e) => {
+          stop(e);
+          state.fly = !state.fly;
+          status("Fly mode " + (state.fly ? "on" : "off"));
+        };
+      }
+
+      if (respawnMenuBtn) {
+        respawnMenuBtn.onclick = (e) => {
+          stop(e);
+          if (typeof respawn === "function") {
+            respawn();
+          }
+          hideMenu();
+        };
+      }
+
+      if (multiplayerMenuBtn) {
+        multiplayerMenuBtn.onclick = (e) => {
+          stop(e);
+          multiplayerBox.style.display = multiplayerBox.style.display === "none" ? "block" : "none";
+        };
+      }
+    }
+
+    const rpgPanel = document.createElement("div");
+    rpgPanel.className = "rpgPanel";
+    document.body.appendChild(rpgPanel);
+
+    const craftPanel = document.createElement("div");
+    craftPanel.className = "craftPanel";
+    craftPanel.innerHTML = `<div class="craftTop"><h2 style="margin:0;font-size:20px">Crafting</h2><button id="craftCloseBtn">Back to Game</button></div><div id="craftInventory" class="invLine"></div><div id="craftGrid" class="craftGrid"></div><div class="invLine">Shortcuts: C crafting . Q switches hand/sword . left click uses sword</div>`;
+    document.body.appendChild(craftPanel);
+    const craftGrid = craftPanel.querySelector("#craftGrid");
+    const craftInventory = craftPanel.querySelector("#craftInventory");
+    craftPanel.querySelector("#craftCloseBtn").addEventListener("click", () => toggleCrafting(false));
+
+    window.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    // FINAL_ESC_MENU_HANDLER
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        showMenu();
+      }
+    }, true);
+
+    // FINAL_CRAFTING_C_KEY_FIX
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "KeyC") {
+        e.preventDefault();
+        e.stopPropagation();
+        overlay.style.display = "none";
+        toggleCrafting(true);
+      }
+    }, true);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+    wireMenuButtons();
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87b7ff);
+    scene.fog = new THREE.Fog(0x87b7ff, 40, WORLD.viewDistance);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 400);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x3a3a3a, 0.9);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    sun.position.set(40, 80, 30);
+    scene.add(sun);
+
+    const skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(220, 18, 12),
+      new THREE.MeshBasicMaterial({ color: 0x87b7ff, side: THREE.BackSide })
+    );
+    scene.add(skyDome);
+
+    // P2P Multiplayer using WebRTC DataChannels. Socket.IO is only used for signaling.
+    const NET = {
+      socket: null,
+      peer: null,
+      channel: null,
+      room: "",
+      isHost: false,
+      connected: false,
+      remoteId: "peer",
+      lastSend: 0,
+      sendRateMs: 50
+    };
+
+    const remotePlayerGroup = new THREE.Group();
+    remotePlayerGroup.visible = false;
+    const remoteBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 1.55, 0.7),
+      new THREE.MeshLambertMaterial({ color: 0x2f74ff })
+    );
+    remoteBody.position.y = 0.775;
+    const remoteHead = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.55, 0.55),
+      new THREE.MeshLambertMaterial({ color: 0xffd7b5 })
+    );
+    remoteHead.position.y = 1.85;
+    const remoteSword = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 1.2),
+      new THREE.MeshLambertMaterial({ color: 0xdbe7f2 })
+    );
+    remoteSword.position.set(0.45, 1.05, -0.45);
+    remoteSword.rotation.x = Math.PI / 7;
+    remoteSword.visible = false;
+    remotePlayerGroup.add(remoteBody, remoteHead, remoteSword);
+    scene.add(remotePlayerGroup);
+
+    function setMultiplayerStatus(msg) {
+      if (multiplayerStatus) multiplayerStatus.textContent = msg;
+      status("PVP: " + msg);
+    }
+
+    function randomRoomCode() {
+      return Math.random().toString(36).slice(2, 8).toUpperCase();
+    }
+
+    function sendNet(type, data = {}) {
+      if (!NET.channel || NET.channel.readyState !== "open") return;
+      NET.channel.send(JSON.stringify({ type, ...data }));
+    }
+
+    function closePeerConnection() {
+      try { NET.channel?.close(); } catch {}
+      try { NET.peer?.close(); } catch {}
+      NET.channel = null;
+      NET.peer = null;
+      NET.connected = false;
+      remotePlayerGroup.visible = false;
+      setMultiplayerStatus("Disconnected");
+    }
+
+    function connectSocket() {
+      if (NET.socket && NET.socket.connected) return NET.socket;
+      if (typeof io !== "function") {
+        setMultiplayerStatus("Socket.IO client missing. Run this through node server.js, not by opening the file directly.");
+        return null;
+      }
+      NET.socket = io(window.location.origin, { transports: ["websocket", "polling"] });
+      NET.socket.on("connect", () => setMultiplayerStatus("Signaling connected. Ready to host or join."));
+      NET.socket.on("connect_error", () => setMultiplayerStatus("Signaling failed. Make sure server.js is running."));
+      NET.socket.on("offer", async ({ offer, room }) => {
+        NET.room = room;
+        await ensurePeer(false);
+        await NET.peer.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await NET.peer.createAnswer();
+        await NET.peer.setLocalDescription(answer);
+        NET.socket.emit("answer", { room: NET.room, answer });
+        setMultiplayerStatus("Joining room " + NET.room + "...");
+      });
+      NET.socket.on("answer", async ({ answer }) => {
+        if (!NET.peer) return;
+        await NET.peer.setRemoteDescription(new RTCSessionDescription(answer));
+        setMultiplayerStatus("Peer answer received. Connecting P2P...");
+      });
+      NET.socket.on("ice-candidate", async ({ candidate }) => {
+        try { if (NET.peer && candidate) await NET.peer.addIceCandidate(candidate); } catch (err) { console.warn(err); }
+      });
+      NET.socket.on("room-error", (msg) => setMultiplayerStatus(msg));
+      NET.socket.on("peer-left", () => closePeerConnection());
+      return NET.socket;
+    }
+
+    async function ensurePeer(asHost) {
+      closePeerConnection();
+      NET.isHost = asHost;
+      NET.peer = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
+      NET.peer.onicecandidate = (event) => {
+        if (event.candidate && NET.socket && NET.room) {
+          NET.socket.emit("ice-candidate", { room: NET.room, candidate: event.candidate });
+        }
+      };
+      NET.peer.onconnectionstatechange = () => {
+        if (["failed", "disconnected", "closed"].includes(NET.peer.connectionState)) closePeerConnection();
+      };
+      NET.peer.ondatachannel = (event) => {
+        NET.channel = event.channel;
+        setupDataChannel();
+      };
+      if (asHost) {
+        NET.channel = NET.peer.createDataChannel("game", { ordered: false, maxRetransmits: 0 });
+        setupDataChannel();
+      }
+    }
+
+    function setupDataChannel() {
+      NET.channel.onopen = () => {
+        NET.connected = true;
+        setMultiplayerStatus("P2P connected in room " + NET.room + ". You can close ESC and play.");
+        if (NET.isHost) sendWorldSnapshot();
+      };
+      NET.channel.onclose = () => closePeerConnection();
+      NET.channel.onmessage = (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+        handleNetMessage(msg);
+      };
+    }
+
+    async function hostRoom() {
+      const socket = connectSocket();
+      if (!socket) return;
+      NET.room = randomRoomCode();
+      NET.isHost = true;
+      roomCodeInput.value = NET.room;
+      await ensurePeer(true);
+      const offer = await NET.peer.createOffer();
+      await NET.peer.setLocalDescription(offer);
+      socket.emit("host-room", { room: NET.room, offer });
+      setMultiplayerStatus("Hosting room " + NET.room + ". Give this code to your partner.");
+    }
+
+    async function joinRoom() {
+      const socket = connectSocket();
+      if (!socket) return;
+      const room = roomCodeInput.value.trim().toUpperCase();
+      if (!room) { setMultiplayerStatus("Enter a room code first."); return; }
+      NET.room = room;
+      NET.isHost = false;
+      socket.emit("join-room", { room });
+      setMultiplayerStatus("Joining room " + room + "...");
+    }
+
+    function sendWorldSnapshot() {
+      sendNet("world", {
+        seed: WORLD.seed,
+        edits: Array.from(edits.entries())
+      });
+    }
+
+    function handleNetMessage(msg) {
+      if (msg.type === "world" && !NET.isHost) {
+        WORLD.seed = msg.seed;
+        localStorage.setItem("voxel_seed", String(msg.seed));
+        edits.clear();
+        for (const [k, v] of (msg.edits || [])) edits.set(k, v);
+        generateBaseWorld();
+        rebuildAllChunks();
+        setMultiplayerStatus("World synced from host. P2P connected in room " + NET.room + ".");
+      }
+
+      if (msg.type === "state") {
+        remotePlayerGroup.visible = true;
+        remotePlayerGroup.position.set(msg.x, msg.y, msg.z);
+        remotePlayerGroup.rotation.y = msg.yaw || 0;
+        remoteSword.visible = msg.weaponMode === "sword";
+      }
+
+      if (msg.type === "block") {
+        setBlock(msg.x, msg.y, msg.z, msg.block);
+        markDirtyAroundBlock(msg.x, msg.y, msg.z);
+        scheduleDirtyFlush();
+      }
+
+      if (msg.type === "attack") {
+        remoteSword.visible = true;
+        setTimeout(() => { remoteSword.visible = false; }, 180);
+        const distance = remotePlayerGroup.position.distanceTo(state.pos);
+        if (distance < 2.4) {
+          const armorReduction = equipment.armor === ITEM.DIAMOND_ARMOR ? 0.55 : equipment.armor === ITEM.IRON_ARMOR ? 0.35 : equipment.armor === ITEM.LEATHER_ARMOR ? 0.15 : 0;
+          const damage = Math.max(1, Math.round((msg.damage || 3) * (1 - armorReduction)));
+          equipment.health = Math.max(0, equipment.health - damage);
+          updateRpgPanel();
+          floatText("-" + damage + " PVP");
+          if (equipment.health <= 0) {
+            equipment.health = equipment.maxHealth;
+            respawn();
+            sendNet("respawned", {});
+            status("You were defeated in PVP. Respawned.");
+          }
+        }
+      }
+
+      if (msg.type === "respawned") {
+        status("Opponent respawned");
+      }
+    }
+
+    function sendPlayerNetState(force = false) {
+      const now = performance.now();
+      if (!force && now - NET.lastSend < NET.sendRateMs) return;
+      NET.lastSend = now;
+      sendNet("state", {
+        x: state.pos.x,
+        y: state.pos.y,
+        z: state.pos.z,
+        yaw: state.yaw,
+        pitch: state.pitch,
+        weaponMode: equipment.weaponMode,
+        health: equipment.health
+      });
+    }
+
+    function sendNetworkBlockChange(x, y, z, block) {
+      sendNet("block", { x, y, z, block });
+    }
+
+    function sendNetworkAttack() {
+      sendNet("attack", { damage: weaponDamage(), weaponMode: equipment.weaponMode });
+    }
+
+    hostRoomBtn?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hostRoom(); });
+    joinRoomBtn?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); joinRoom(); });
+    copyRoomBtn?.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!roomCodeInput.value) return;
+      try { await navigator.clipboard.writeText(roomCodeInput.value); setMultiplayerStatus("Copied room code " + roomCodeInput.value); }
+      catch { setMultiplayerStatus("Room code: " + roomCodeInput.value); }
+    });
+    disconnectRoomBtn?.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (NET.socket && NET.room) NET.socket.emit("leave-room", { room: NET.room });
+      closePeerConnection();
+    });
+
+    const base = new Uint8Array(WORLD.sizeX * WORLD.sizeY * WORLD.sizeZ);
+    const edits = new Map();
+
+    function idx(x, y, z) { return x + WORLD.sizeX * (y + WORLD.sizeY * z); }
+    function inBounds(x, y, z) { return x >= 0 && z >= 0 && y >= 0 && x < WORLD.sizeX && z < WORLD.sizeZ && y < WORLD.sizeY; }
+    function keyOf(x, y, z) { return x + "," + y + "," + z; }
+
+    function getBlock(x, y, z) {
+      if (!inBounds(x, y, z)) return BLOCK.AIR;
+      const k = keyOf(x, y, z);
+      if (edits.has(k)) return edits.get(k);
+      return base[idx(x, y, z)];
+    }
+
+    function setBlock(x, y, z, id) {
+      if (!inBounds(x, y, z)) return false;
+      const k = keyOf(x, y, z);
+      const b = base[idx(x, y, z)];
+      if (id === b) edits.delete(k);
+      else edits.set(k, id);
+      return true;
+    }
+
+    const inv = Object.create(null);
+    for (const id of PLACEABLE_IDS) inv[id] = 0;
+
+    const ITEM = {
+      STICK: "stick", COAL: "coal", IRON_ORE_ITEM: "ironOre", IRON_INGOT: "ironIngot", DIAMOND: "diamond",
+      WOOD_SWORD: "woodSword", STONE_SWORD: "stoneSword", IRON_SWORD: "ironSword", DIAMOND_SWORD: "diamondSword",
+      LEATHER_ARMOR: "leatherArmor", IRON_ARMOR: "ironArmor", DIAMOND_ARMOR: "diamondArmor"
+    };
+
+    const ITEM_META = {
+      [ITEM.STICK]: { name: "Stick", icon: "🪵" }, [ITEM.COAL]: { name: "Coal", icon: "⬛" },
+      [ITEM.IRON_ORE_ITEM]: { name: "Raw Iron", icon: "🪨" }, [ITEM.IRON_INGOT]: { name: "Iron Ingot", icon: "⚙️" },
+      [ITEM.DIAMOND]: { name: "Diamond", icon: "💎" }, [ITEM.WOOD_SWORD]: { name: "Wood Sword", icon: "🗡️" },
+      [ITEM.STONE_SWORD]: { name: "Stone Sword", icon: "🗡️" }, [ITEM.IRON_SWORD]: { name: "Iron Sword", icon: "⚔️" },
+      [ITEM.DIAMOND_SWORD]: { name: "Diamond Sword", icon: "⚔️" },
+      [ITEM.LEATHER_ARMOR]: { name: "Leather Armor", icon: "🛡️" }, [ITEM.IRON_ARMOR]: { name: "Iron Armor", icon: "🛡️" },
+      [ITEM.DIAMOND_ARMOR]: { name: "Diamond Armor", icon: "🛡️" }
+    };
+
+    const itemInv = Object.create(null);
+    Object.values(ITEM).forEach(id => itemInv[id] = 0);
+    const equipment = { weapon: null, armor: null, health: 100, maxHealth: 100, weaponMode: "hand" };
+    const weaponModeOrder = ["hand", "sword"];
+    const SWORD_TIERS = [ITEM.WOOD_SWORD, ITEM.STONE_SWORD, ITEM.IRON_SWORD, ITEM.DIAMOND_SWORD];
+
+    const RECIPES = [
+      { id: ITEM.STICK, name: "Sticks x4", makes: 4, needs: { block_5: 1 }, type: "Material" },
+      { id: ITEM.IRON_INGOT, name: "Iron Ingot", makes: 1, needs: { ironOre: 1, coal: 1 }, type: "Material" },
+      { id: ITEM.WOOD_SWORD, name: "Wood Sword", makes: 1, needs: { stick: 1, block_5: 2 }, type: "Weapon" },
+      { id: ITEM.STONE_SWORD, name: "Stone Sword", makes: 1, needs: { stick: 1, block_3: 2 }, type: "Weapon" },
+      { id: ITEM.IRON_SWORD, name: "Iron Sword", makes: 1, needs: { stick: 1, ironIngot: 2 }, type: "Weapon" },
+      { id: ITEM.DIAMOND_SWORD, name: "Diamond Sword", makes: 1, needs: { stick: 1, diamond: 2 }, type: "Weapon" },
+      { id: ITEM.LEATHER_ARMOR, name: "Basic Armor", makes: 1, needs: { block_6: 8 }, type: "Armor" },
+      { id: ITEM.IRON_ARMOR, name: "Iron Armor", makes: 1, needs: { ironIngot: 8 }, type: "Armor" },
+      { id: ITEM.DIAMOND_ARMOR, name: "Diamond Armor", makes: 1, needs: { diamond: 8 }, type: "Armor" }
+    ];
+
+    function addToInv(id, n = 1) { if (inv[id] === undefined) return; inv[id] += n; updateHotbar(); updateRpgPanel(); }
+    function takeFromInv(id, n = 1) { if (inv[id] === undefined) return false; if (inv[id] < n) return false; inv[id] -= n; updateHotbar(); updateRpgPanel(); return true; }
+    function addItem(id, n = 1) { if (itemInv[id] === undefined) return; itemInv[id] += n; updateRpgPanel(); renderCrafting(); }
+    function takeItem(id, n = 1) { if (itemInv[id] === undefined || itemInv[id] < n) return false; itemInv[id] -= n; updateRpgPanel(); renderCrafting(); return true; }
+    function getInvKeyAmount(key) { return key.startsWith("block_") ? (inv[Number(key.slice(6))] ?? 0) : (itemInv[key] ?? 0); }
+    function addInvKey(key, n) { if (key.startsWith("block_")) addToInv(Number(key.slice(6)), n); else addItem(key, n); }
+    function takeInvKey(key, n) { return key.startsWith("block_") ? takeFromInv(Number(key.slice(6)), n) : takeItem(key, n); }
+    function recipeCanCraft(recipe) { return Object.entries(recipe.needs).every(([k,v]) => getInvKeyAmount(k) >= v); }
+    function keyLabel(key) { if (key.startsWith("block_")) return BLOCK_META[Number(key.slice(6))]?.name ?? "Block"; return ITEM_META[key]?.name ?? key; }
+    function equipBestIfEmpty(id) {
+      if ([ITEM.WOOD_SWORD, ITEM.STONE_SWORD, ITEM.IRON_SWORD, ITEM.DIAMOND_SWORD].includes(id)) equipment.weaponMode = "sword";
+      if (!equipment.armor && [ITEM.LEATHER_ARMOR, ITEM.IRON_ARMOR, ITEM.DIAMOND_ARMOR].includes(id)) equipment.armor = id;
+      updateHeldWeapon();
+    }
+    function craftRecipe(recipe) {
+      if (!recipeCanCraft(recipe)) { status("Missing materials for " + recipe.name); return; }
+      for (const [k,v] of Object.entries(recipe.needs)) takeInvKey(k, v);
+      addItem(recipe.id, recipe.makes);
+      equipBestIfEmpty(recipe.id);
+      status("Crafted " + recipe.name);
+      renderCrafting(); updateRpgPanel();
+    }
+    function toggleCrafting(open = !craftPanel.classList.contains("open")) {
+      craftPanel.classList.toggle("open", open);
+
+      if (open) {
+        overlay.style.display = "none";
+        renderCrafting();
+
+        suppressNextPointerUnlockMenu = true;
+
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      } else {
+        try {
+          renderer.domElement.requestPointerLock();
+        } catch {}
+      }
+    }
+    function bestSword() {
+      for (const id of [ITEM.DIAMOND_SWORD, ITEM.IRON_SWORD, ITEM.STONE_SWORD, ITEM.WOOD_SWORD]) if (itemInv[id] > 0) return id;
+      return null;
+    }
+    function activeWeaponId() {
+      if (equipment.weaponMode === "sword") return bestSword();
+      return null;
+    }
+    function weaponModeName(mode = equipment.weaponMode) {
+      if (mode === "hand") return "Hand";
+      const id = mode === "sword" ? bestSword() : null;
+      if (id && itemInv[id] > 0) return ITEM_META[id].name;
+      return "Sword locked";
+    }
+    function equipItem(id) {
+      if (id && itemInv[id] <= 0) {
+        status("You have not crafted " + (ITEM_META[id]?.name ?? id));
+        return;
+      }
+      if ([ITEM.LEATHER_ARMOR, ITEM.IRON_ARMOR, ITEM.DIAMOND_ARMOR].includes(id)) equipment.armor = id;
+      else if ([ITEM.WOOD_SWORD, ITEM.STONE_SWORD, ITEM.IRON_SWORD, ITEM.DIAMOND_SWORD].includes(id)) equipment.weaponMode = "sword";
+      else equipment.weaponMode = "hand";
+      status("Equipped " + weaponModeName());
+      updateRpgPanel();
+      renderCrafting();
+      updateHotbar();
+      updateHeldWeapon();
+    }
+    function cycleWeapon() {
+      if (equipment.weaponMode === "hand" && bestSword()) {
+        equipment.weaponMode = "sword";
+      } else {
+        equipment.weaponMode = "hand";
+      }
+      status("First slot: " + weaponModeName());
+      updateRpgPanel();
+      updateHotbar();
+      updateHeldWeapon();
+    }
+    function renderHeldWeapon(type) {
+      if (!heldWeaponEl) return;
+      heldWeaponEl.className = "heldWeapon" + (type === "sword" ? " show sword" : "");
+      if (type !== "sword") {
+        heldWeaponEl.innerHTML = "";
+        return;
+      }
+      heldWeaponEl.innerHTML = '<div class="pixel tip"></div><div class="pixel blade"></div><div class="pixel guard"></div><div class="pixel grip"></div>';
+    }
+    function updateHeldWeapon() {
+      if (state.selectedIndex !== 0) return renderHeldWeapon(null);
+      renderHeldWeapon(activeWeaponId() ? "sword" : "hand");
+    }
+    function animateHeldWeapon() {
+      if (!heldWeaponEl || !heldWeaponEl.classList.contains("show")) return;
+      heldWeaponEl.classList.remove("swing"); void heldWeaponEl.offsetWidth; heldWeaponEl.classList.add("swing");
+    }
+    function renderCrafting() {
+      if (!craftGrid) return;
+      const items = Object.entries(itemInv).filter(([,v]) => v > 0).map(([k,v]) => `${ITEM_META[k]?.icon ?? "•"} ${ITEM_META[k]?.name ?? k}: ${v}`).join("  |  ") || "No crafted items yet.";
+      const mats = PLACEABLE_IDS.filter(id => inv[id] > 0).map(id => `${BLOCK_META[id].name}: ${inv[id]}`).join("  |  ");
+      craftInventory.textContent = `Materials: ${mats || "mine blocks and ores first"}  |  Items: ${items}`;
+      craftGrid.innerHTML = RECIPES.map((r, idx) => {
+        const needs = Object.entries(r.needs).map(([k,v]) => `${keyLabel(k)} x${v}`).join(", ");
+        const can = recipeCanCraft(r);
+        return `<div class="recipeCard"><strong>${ITEM_META[r.id]?.icon ?? "◆"} ${r.name}</strong><div>${r.type}</div><div class="invLine">Needs: ${needs}</div><button data-recipe="${idx}" ${can ? "" : "disabled"}>Craft</button></div>`;
+      }).join("");
+      craftGrid.querySelectorAll("button[data-recipe]").forEach(btn => btn.addEventListener("click", () => craftRecipe(RECIPES[Number(btn.dataset.recipe)])));
+    }
+    function updateRpgPanel() {
+      if (!rpgPanel) return;
+      const weapon = weaponModeName();
+      const armor = equipment.armor ? ITEM_META[equipment.armor].name : "None";
+      const armorPct = equipment.armor === ITEM.DIAMOND_ARMOR ? 100 : equipment.armor === ITEM.IRON_ARMOR ? 70 : equipment.armor === ITEM.LEATHER_ARMOR ? 35 : 0;
+      rpgPanel.innerHTML = `<div class="row"><b>Health</b><div class="heartbar"><div style="width:${equipment.health}%"></div></div></div><div class="row"><b>Armor</b><div class="armorbar"><div style="width:${armorPct}%"></div></div></div><div class="row"><span>Weapon</span><b>${weapon}</b></div><div class="row"><span>Armor</span><b>${armor}</b></div><div class="row"><span>First Slot</span><b>Q switches hand/sword</b></div>`;
+    }
+    function floatText(text) { const d=document.createElement("div"); d.className="floatText"; d.textContent=text; document.body.appendChild(d); setTimeout(()=>d.remove(),850); }
+
+    function hash2D(x, z, seed) {
+      let h = seed ^ (x * 374761393) ^ (z * 668265263);
+      h = (h ^ (h >>> 13)) * 1274126177;
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+    function valueNoise2D(x, z, seed) {
+      const xi = Math.floor(x), zi = Math.floor(z);
+      const xf = x - xi, zf = z - zi;
+      const u = smoothstep(xf), v = smoothstep(zf);
+
+      const a = hash2D(xi, zi, seed);
+      const b = hash2D(xi + 1, zi, seed);
+      const c = hash2D(xi, zi + 1, seed);
+      const d = hash2D(xi + 1, zi + 1, seed);
+
+      return lerp(lerp(a, b, u), lerp(c, d, u), v);
+    }
+
+    function fbm2D(x, z, seed, octaves = 5) {
+      let amp = 1.0, freq = 1.0, sum = 0.0, norm = 0.0;
+      for (let i = 0; i < octaves; i++) {
+        sum += amp * (valueNoise2D(x * freq, z * freq, seed + i * 1013) * 2 - 1);
+        norm += amp;
+        amp *= 0.5;
+        freq *= 2.0;
+      }
+      return sum / norm;
+    }
+
+    function placeTree(x, y, z, seed) {
+      const h = 4 + Math.floor(hash2D(x, z, seed + 8888) * 3);
+      for (let i = 0; i < h; i++) if (inBounds(x, y + i, z)) base[idx(x, y + i, z)] = BLOCK.WOOD;
+      const topY = y + h;
+
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -2; dy <= 1; dy++) {
+        const dist = Math.abs(dx) + Math.abs(dz) + Math.max(0, -dy);
+        if (dist > 4) continue;
+        const xx = x + dx, yy = topY + dy, zz = z + dz;
+        if (!inBounds(xx, yy, zz)) continue;
+        if (base[idx(xx, yy, zz)] === BLOCK.AIR) base[idx(xx, yy, zz)] = BLOCK.LEAVES;
+      }
+    }
+
+    function generateBaseWorld() {
+      base.fill(BLOCK.AIR);
+      const seed = WORLD.seed;
+
+      // Biome fields (0..1). Low frequency so biomes form large regions.
+      // biomeA drives "mountainness". biomeB drives "moisture" for forests.
+      function clamp01(t) { return t < 0 ? 0 : (t > 1 ? 1 : t); }
+
+      for (let x = 0; x < WORLD.sizeX; x++) for (let z = 0; z < WORLD.sizeZ; z++) {
+        const nx = x / WORLD.sizeX;
+        const nz = z / WORLD.sizeZ;
+
+        // Base rolling hills
+        const h1 = fbm2D(nx * 2.2, nz * 2.2, seed, 5);
+        const h2 = fbm2D(nx * 6.0, nz * 6.0, seed + 999, 4);
+
+        // Biomes
+        const biomeA = (fbm2D(nx * 0.85, nz * 0.85, seed + 1337, 3) + 1) * 0.5;   // mountainness
+        const biomeB = (fbm2D(nx * 1.10, nz * 1.10, seed + 424242, 3) + 1) * 0.5; // moisture
+
+        const mountain = clamp01((biomeA - 0.58) / 0.30);
+        const forest = clamp01((biomeB - 0.42) / 0.35) * (1.0 - mountain);
+
+        // Extra mountainous detail and a bit of ridging
+        const ridge = Math.abs(fbm2D(nx * 3.5, nz * 3.5, seed + 777, 4));
+        const mountainAdd = mountain * (14 + ridge * 10);
+
+        // Height
+        let height = Math.floor(WORLD.seaLevel + (h1 * 9) + (h2 * 3) + mountainAdd);
+        height = Math.max(2, Math.min(WORLD.sizeY - 2, height));
+
+        // Plains flattening in non-mountain areas
+        const flat = fbm2D(nx * 1.0, nz * 1.0, seed + 4242, 3);
+        if (mountain < 0.15 && flat > 0.55) height = Math.floor(lerp(height, WORLD.seaLevel + 2, 0.55));
+
+        // Surface selection
+        const isBeach = height <= WORLD.seaLevel + 1;
+        const rockyTop = mountain > 0.55 && height > WORLD.seaLevel + 10;
+
+        for (let y = 0; y <= height; y++) {
+          const at = idx(x, y, z);
+          if (y === height) {
+            if (isBeach) base[at] = BLOCK.SAND;
+            else if (rockyTop) base[at] = BLOCK.STONE;
+            else base[at] = BLOCK.GRASS;
+          } else if (y >= height - 3) {
+            if (isBeach) base[at] = BLOCK.SAND;
+            else base[at] = BLOCK.DIRT;
+          } else {
+            base[at] = BLOCK.STONE;
+            const oreN = hash2D(x * 17 + y * 31, z * 19 + y * 7, seed + 9090);
+            const depth = height - y;
+            if (depth > 5 && oreN > 0.987) base[at] = BLOCK.COAL_ORE;
+            if (depth > 9 && y < WORLD.seaLevel + 3 && oreN > 0.994) base[at] = BLOCK.IRON_ORE;
+            if (depth > 14 && y < WORLD.seaLevel - 3 && oreN > 0.9984) base[at] = BLOCK.DIAMOND_ORE;
+          }
+        }
+
+        // Trees . much denser in forest biomes, sparse elsewhere, none on rocky peaks
+        if (!isBeach && !rockyTop && height > WORLD.seaLevel + 2) {
+          const treeNoise = hash2D(x, z, seed + 7777);
+          const threshold = lerp(0.988, 0.965, forest); // forest => easier to spawn
+          if (treeNoise > threshold) placeTree(x, height + 1, z, seed);
+        }
+      }
+    }
+
+    function createOutlineTexture(fillHex, blockId = 0) {
+      const size = 16;
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const ctx = c.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+
+      const baseColor = new THREE.Color(fillHex);
+      function clamp(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+      function shade(hex, amount) {
+        const col = new THREE.Color(hex);
+        const r = clamp(col.r * 255 + amount);
+        const g = clamp(col.g * 255 + amount);
+        const b = clamp(col.b * 255 + amount);
+        return `rgb(${r},${g},${b})`;
+      }
+      function mix(c1, c2, t) {
+        return c1.clone().lerp(c2, t);
+      }
+      function cssColor(col, amount = 0) {
+        return `rgb(${clamp(col.r * 255 + amount)},${clamp(col.g * 255 + amount)},${clamp(col.b * 255 + amount)})`;
+      }
+      function tinyRand(x, y, salt = 0) {
+        let h = (x * 374761393) ^ (y * 668265263) ^ (blockId * 144269) ^ salt;
+        h = (h ^ (h >>> 13)) * 1274126177;
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+      }
+
+      // Soft pixel noise. Enough texture to feel blocky, but not noisy or distracting.
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const n = tinyRand(x, y);
+          let amt = (n - 0.5) * 24;
+          let col = baseColor.clone();
+
+          if (blockId === BLOCK.GRASS) {
+            const grassDark = new THREE.Color(0x3f983a);
+            const grassLight = new THREE.Color(0x73cc54);
+            col = mix(grassDark, grassLight, 0.35 + n * 0.45);
+            if (y > 10) col.lerp(new THREE.Color(0x7b522e), 0.18); // faint dirt underlayer feel
+            amt *= 0.65;
+          } else if (blockId === BLOCK.DIRT) {
+            const dirtDark = new THREE.Color(0x6f4428);
+            const dirtLight = new THREE.Color(0xa56a3b);
+            col = mix(dirtDark, dirtLight, 0.25 + n * 0.55);
+            if (tinyRand(x, y, 91) > 0.87) amt += 18;
+          } else if (blockId === BLOCK.STONE) {
+            const stoneDark = new THREE.Color(0x777777);
+            const stoneLight = new THREE.Color(0xb1b1b1);
+            col = mix(stoneDark, stoneLight, 0.30 + n * 0.45);
+            if ((x + y) % 7 === 0) amt -= 8;
+          } else if (blockId === BLOCK.SAND) {
+            const sandDark = new THREE.Color(0xcdb46c);
+            const sandLight = new THREE.Color(0xf0d98e);
+            col = mix(sandDark, sandLight, 0.35 + n * 0.45);
+            amt *= 0.5;
+          } else if (blockId === BLOCK.WOOD) {
+            const woodDark = new THREE.Color(0x70431f);
+            const woodLight = new THREE.Color(0xb8793a);
+            col = mix(woodDark, woodLight, 0.28 + n * 0.42);
+            if (x % 5 === 0 || x % 5 === 1) amt -= 12;
+            if (tinyRand(x, y, 44) > 0.92) amt += 12;
+          } else if (blockId === BLOCK.LEAVES) {
+            const leafDark = new THREE.Color(0x267c2d);
+            const leafLight = new THREE.Color(0x55bd50);
+            col = mix(leafDark, leafLight, 0.25 + n * 0.58);
+            if (tinyRand(x, y, 12) > 0.82) amt += 16;
+          } else if (blockId === BLOCK.COAL_ORE || blockId === BLOCK.IRON_ORE || blockId === BLOCK.DIAMOND_ORE) {
+            const stoneDark = new THREE.Color(0x686868);
+            const stoneLight = new THREE.Color(0xa4a4a4);
+            col = mix(stoneDark, stoneLight, 0.30 + n * 0.35);
+            const speck = tinyRand(x >> 1, y >> 1, 222);
+            const inVein = ((x + y) % 5 === 0 || speck > 0.72) && tinyRand(x, y, 333) > 0.35;
+            if (inVein) {
+              if (blockId === BLOCK.COAL_ORE) col = new THREE.Color(0x222326);
+              if (blockId === BLOCK.IRON_ORE) col = mix(new THREE.Color(0xa76843), new THREE.Color(0xe2b081), tinyRand(x,y,444));
+              if (blockId === BLOCK.DIAMOND_ORE) col = mix(new THREE.Color(0x22bfc9), new THREE.Color(0x9ff7ff), tinyRand(x,y,555));
+              amt += blockId === BLOCK.COAL_ORE ? -8 : 8;
+            }
+          }
+
+          ctx.fillStyle = cssColor(col, amt);
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+
+      // Very light bevel/grid edge so cubes read clearly without looking like heavy outlines.
+      ctx.strokeStyle = "rgba(255,255,255,0.14)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0.5, 0.5);
+      ctx.lineTo(size - 0.5, 0.5);
+      ctx.moveTo(0.5, 0.5);
+      ctx.lineTo(0.5, size - 0.5);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.needsUpdate = true;
+      return { texture: tex, dataURL: c.toDataURL() };
+    }
+
+    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+    const materials = {};
+    const swatches = {};
+
+    for (const id of PLACEABLE_IDS) {
+      const { texture, dataURL } = createOutlineTexture(BLOCK_META[id].color, id);
+      swatches[id] = dataURL;
+      materials[id] = new THREE.MeshLambertMaterial({ map: texture });
+    }
+
+    function chunkCoord(v) { return Math.floor(v / CHUNK); }
+    function chunkKey(cx, cy, cz) { return cx + "," + cy + "," + cz; }
+
+    const chunksX = Math.ceil(WORLD.sizeX / CHUNK);
+    const chunksY = Math.ceil(WORLD.sizeY / CHUNK);
+    const chunksZ = Math.ceil(WORLD.sizeZ / CHUNK);
+
+    const chunkMeshes = new Map(); // key -> Map blockId -> InstancedMesh
+    const rayMeshes = []; // flat list for raycast
+
+    function getChunkMeshMap(cx, cy, cz) {
+      const k = chunkKey(cx, cy, cz);
+      if (chunkMeshes.has(k)) return chunkMeshes.get(k);
+      const m = new Map();
+      chunkMeshes.set(k, m);
+      return m;
+    }
+
+    function ensureChunkInstanced(cx, cy, cz, blockId, maxCount) {
+      const map = getChunkMeshMap(cx, cy, cz);
+      if (map.has(blockId)) {
+        const mesh = map.get(blockId);
+        if (mesh.instanceMatrix.array.length / 16 >= maxCount) return mesh;
+
+        scene.remove(mesh);
+        const idx = rayMeshes.indexOf(mesh);
+        if (idx >= 0) rayMeshes.splice(idx, 1);
+        map.delete(blockId);
+      }
+
+      const mesh = new THREE.InstancedMesh(cubeGeo, materials[blockId], Math.max(1, maxCount));
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.count = 0;
+      mesh.frustumCulled = false;
+      // Keep bounds valid for visibility and raycasting after edits
+      if (!cubeGeo.boundingSphere) cubeGeo.computeBoundingSphere();
+      if (!cubeGeo.boundingBox) cubeGeo.computeBoundingBox();
+      mesh.computeBoundingSphere();
+      mesh.computeBoundingBox();
+      mesh.userData.blockId = blockId;
+      mesh.userData.chunk = { cx, cy, cz };
+      scene.add(mesh);
+      map.set(blockId, mesh);
+      rayMeshes.push(mesh);
+      return mesh;
+    }
+
+    function isFaceExposed(x, y, z) {
+      if (getBlock(x + 1, y, z) === BLOCK.AIR) return true;
+      if (getBlock(x - 1, y, z) === BLOCK.AIR) return true;
+      if (getBlock(x, y + 1, z) === BLOCK.AIR) return true;
+      if (getBlock(x, y - 1, z) === BLOCK.AIR) return true;
+      if (getBlock(x, y, z + 1) === BLOCK.AIR) return true;
+      if (getBlock(x, y, z - 1) === BLOCK.AIR) return true;
+      return false;
+    }
+
+    const tmpMat = new THREE.Matrix4();
+    const tmpPos = new THREE.Vector3();
+
+    function rebuildChunk(cx, cy, cz) {
+      const x0 = cx * CHUNK;
+      const y0 = cy * CHUNK;
+      const z0 = cz * CHUNK;
+
+      const x1 = Math.min(WORLD.sizeX, x0 + CHUNK);
+      const y1 = Math.min(WORLD.sizeY, y0 + CHUNK);
+      const z1 = Math.min(WORLD.sizeZ, z0 + CHUNK);
+
+      const lists = new Map();
+      for (const id of PLACEABLE_IDS) lists.set(id, []);
+
+      for (let x = x0; x < x1; x++) for (let z = z0; z < z1; z++) for (let y = y0; y < y1; y++) {
+        const b = getBlock(x, y, z);
+        if (b === BLOCK.AIR) continue;
+        if (!isFaceExposed(x, y, z)) continue;
+        lists.get(b).push([x, y, z]);
+      }
+
+      for (const id of PLACEABLE_IDS) {
+        const list = lists.get(id);
+        const mesh = ensureChunkInstanced(cx, cy, cz, id, list.length);
+
+        mesh.count = list.length;
+        for (let i = 0; i < list.length; i++) {
+          const [x, y, z] = list[i];
+          tmpPos.set(x + 0.5, y + 0.5, z + 0.5);
+          tmpMat.makeTranslation(tmpPos.x, tmpPos.y, tmpPos.z);
+          mesh.setMatrixAt(i, tmpMat);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.frustumCulled = false;
+        mesh.computeBoundingSphere();
+        mesh.computeBoundingBox();
+      }
+    }
+
+    function rebuildAllChunks() {
+      for (let cx = 0; cx < chunksX; cx++) for (let cy = 0; cy < chunksY; cy++) for (let cz = 0; cz < chunksZ; cz++) {
+        rebuildChunk(cx, cy, cz);
+      }
+      status("World built. Seed " + WORLD.seed + " . Edits " + edits.size);
+    }
+
+    const dirtyChunks = new Set();
+    let dirtyTimer = 0;
+
+    function markDirtyChunk(cx, cy, cz) {
+      if (cx < 0 || cy < 0 || cz < 0 || cx >= chunksX || cy >= chunksY || cz >= chunksZ) return;
+      dirtyChunks.add(chunkKey(cx, cy, cz));
+    }
+
+    function markDirtyAroundBlock(x, y, z) {
+      const cx = chunkCoord(x);
+      const cy = chunkCoord(y);
+      const cz = chunkCoord(z);
+
+      markDirtyChunk(cx, cy, cz);
+      markDirtyChunk(cx + 1, cy, cz);
+      markDirtyChunk(cx - 1, cy, cz);
+      markDirtyChunk(cx, cy + 1, cz);
+      markDirtyChunk(cx, cy - 1, cz);
+      markDirtyChunk(cx, cy, cz + 1);
+      markDirtyChunk(cx, cy, cz - 1);
+    }
+
+    function flushDirtyChunks() {
+      dirtyTimer = 0;
+      if (dirtyChunks.size === 0) return;
+
+      for (const k of dirtyChunks) {
+        const [cx, cy, cz] = k.split(",").map(n => parseInt(n, 10));
+        rebuildChunk(cx, cy, cz);
+      }
+      dirtyChunks.clear();
+    }
+
+    function scheduleDirtyFlush() {
+      if (dirtyTimer) return;
+      dirtyTimer = setTimeout(flushDirtyChunks, 0);
+    }
+
+    const clock = new THREE.Clock();
+
+    const state = {
+      locked: false,
+      fly: false,
+      onGround: false,
+      vel: new THREE.Vector3(0, 0, 0),
+      pos: new THREE.Vector3(WORLD.sizeX / 2, WORLD.seaLevel + 10, WORLD.sizeZ / 2),
+      yaw: 0,
+      pitch: 0,
+      selectedIndex: 0,
+      lastSaveAt: 0
+    };
+
+    const keys = { w:false, a:false, s:false, d:false, space:false, shift:false };
+
+    function lock() { renderer.domElement.requestPointerLock(); }
+
+    document.addEventListener("pointerlockchange", () => {
+      state.locked = document.pointerLockElement === renderer.domElement;
+
+      if (!state.locked) {
+        if (suppressNextPointerUnlockMenu) {
+          suppressNextPointerUnlockMenu = false;
+          return;
+        }
+
+        if (!craftPanel.classList.contains("open")) {
+          showMenu();
+        }
+      } else {
+        overlay.style.display = "none";
+      }
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!state.locked) return;
+      const sens = 0.0022;
+      state.yaw -= e.movementX * sens;
+      state.pitch -= e.movementY * sens;
+      state.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, state.pitch));
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "KeyW") keys.w = true;
+      if (e.code === "KeyA") keys.a = true;
+      if (e.code === "KeyS") keys.s = true;
+      if (e.code === "KeyD") keys.d = true;
+      if (e.code === "Space") keys.space = true;
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") keys.shift = true;
+
+      if (e.code === "KeyC" && !e.repeat) { e.preventDefault(); toggleCrafting(); return; }
+      if (e.code === "KeyT" && !e.repeat) { cycleWeapon(); return; }
+      if (e.code === "KeyQ" && !e.repeat) { cycleWeapon(); return; }
+
+      if (e.code === "KeyE") { state.fly = !state.fly; status("Fly " + (state.fly ? "ON" : "OFF")); updateHotbar(); }
+      if (e.code === "KeyR") respawn();
+      if (e.code === "KeyF") saveEditsNow(true);
+
+      if (e.code.startsWith("Digit")) {
+        const n = parseInt(e.code.slice(5), 10);
+        const idx = n === 0 ? 9 : n - 1;
+        if (idx >= 0 && idx < HOTBAR_IDS.length) { state.selectedIndex = idx; updateHotbar(); }
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "KeyW") keys.w = false;
+      if (e.code === "KeyA") keys.a = false;
+      if (e.code === "KeyS") keys.s = false;
+      if (e.code === "KeyD") keys.d = false;
+      if (e.code === "Space") keys.space = false;
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight") keys.shift = false;
+    });
+
+    window.addEventListener("wheel", (e) => {
+      if (!state.locked) return;
+      const dir = Math.sign(e.deltaY);
+      state.selectedIndex = (state.selectedIndex + dir + HOTBAR_IDS.length) % HOTBAR_IDS.length;
+      updateHotbar();
+    }, { passive: true });
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.far = 6.0;
+
+    function pickBlock() {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      raycaster.set(camera.position, dir);
+
+      const hits = raycaster.intersectObjects(rayMeshes, false);
+      if (!hits.length) return null;
+
+      const h = hits[0];
+      if (h.instanceId == null) return null;
+
+      const mesh = h.object;
+      const mat = new THREE.Matrix4();
+      mesh.getMatrixAt(h.instanceId, mat);
+      const p = new THREE.Vector3().setFromMatrixPosition(mat);
+
+      const x = Math.floor(p.x);
+      const y = Math.floor(p.y);
+      const z = Math.floor(p.z);
+
+      const n = (h.face?.normal?.clone() ?? new THREE.Vector3(0, 1, 0));
+      n.transformDirection(mesh.matrixWorld);
+      n.round();
+
+      return { x, y, z, n };
+    }
+
+    function capsuleIntersectsBlock(pos, bx, by, bz) {
+      const px = pos.x, py = pos.y, pz = pos.z;
+
+      const minX = px - PLAYER.radius, maxX = px + PLAYER.radius;
+      const minY = py, maxY = py + PLAYER.height;
+      const minZ = pz - PLAYER.radius, maxZ = pz + PLAYER.radius;
+
+      const bMinX = bx, bMaxX = bx + 1;
+      const bMinY = by, bMaxY = by + 1;
+      const bMinZ = bz, bMaxZ = bz + 1;
+
+      return (minX < bMaxX && maxX > bMinX && minY < bMaxY && maxY > bMinY && minZ < bMaxZ && maxZ > bMinZ);
+    }
+
+    function tryBreak() {
+      const hit = pickBlock();
+      if (!hit) return;
+
+      const b = getBlock(hit.x, hit.y, hit.z);
+      if (b === BLOCK.AIR) return;
+
+      if (inv[b] !== undefined) addToInv(b, 1);
+      if (b === BLOCK.COAL_ORE) addItem(ITEM.COAL, 1);
+      if (b === BLOCK.IRON_ORE) addItem(ITEM.IRON_ORE_ITEM, 1);
+      if (b === BLOCK.DIAMOND_ORE) addItem(ITEM.DIAMOND, 1);
+
+      setBlock(hit.x, hit.y, hit.z, BLOCK.AIR);
+
+      markDirtyAroundBlock(hit.x, hit.y, hit.z);
+      scheduleDirtyFlush();
+      sendNetworkBlockChange(hit.x, hit.y, hit.z, BLOCK.AIR);
+
+      status("Mined " + (BLOCK_META[b]?.name ?? "Block") + " . +1");
+    }
+
+    function tryPlace() {
+      const selectedId = HOTBAR_IDS[state.selectedIndex];
+      if (selectedId === BLOCK.AIR) { status("Hand selected. Mine blocks to place them"); return; }
+      if ((inv[selectedId] ?? 0) <= 0) { status("No " + BLOCK_META[selectedId].name + " in inventory"); return; }
+
+      const hit = pickBlock();
+      if (!hit) return;
+
+      const placeX = hit.x + hit.n.x;
+      const placeY = hit.y + hit.n.y;
+      const placeZ = hit.z + hit.n.z;
+
+      if (!inBounds(placeX, placeY, placeZ)) return;
+      if (getBlock(placeX, placeY, placeZ) !== BLOCK.AIR) return;
+      if (capsuleIntersectsBlock(state.pos, placeX, placeY, placeZ)) return;
+
+      if (!takeFromInv(selectedId, 1)) return;
+
+      setBlock(placeX, placeY, placeZ, selectedId);
+
+      markDirtyAroundBlock(placeX, placeY, placeZ);
+      scheduleDirtyFlush();
+      sendNetworkBlockChange(placeX, placeY, placeZ, selectedId);
+
+      status("Placed " + BLOCK_META[selectedId].name + " . -1");
+    }
+
+    function primaryUse() {
+      if (state.selectedIndex === 0) {
+        const weapon = activeWeaponId();
+        if (!weapon) {
+          tryBreak();
+          return;
+        }
+        animateHeldWeapon();
+        meleeAttack();
+      } else {
+        tryBreak();
+      }
+    }
+
+    window.addEventListener("mousedown", (e) => {
+      if (!state.locked) return;
+      if (e.button === 0) primaryUse();
+      if (e.button === 2) tryPlace();
+    });
+
+    // PVP mode only: zombie / enemy spawning has been removed.
+    // This keeps the weapon system for player-vs-player style classroom play,
+    // but removes all AI mobs, AI damage, zombie loot, and zombie chase behavior.
+    const pvpPlayers = [];
+
+    function weaponDamage() {
+      const w = activeWeaponId();
+      return w === ITEM.DIAMOND_SWORD ? 22 : w === ITEM.IRON_SWORD ? 16 : w === ITEM.STONE_SWORD ? 11 : w === ITEM.WOOD_SWORD ? 7 : 3;
+    }
+
+    function meleeAttack() {
+      animateHeldWeapon();
+      sendNetworkAttack();
+      status(NET.connected ? "PVP attack sent" : "PVP attack swung. Connect multiplayer to damage another player.");
+    }
+
+    function updateCombat(dt) {
+      // PVP-only mode. No zombie AI updates.
+    }
+
+    function isSolid(x, y, z) { return getBlock(x, y, z) !== BLOCK.AIR; }
+
+    function intersectsWorld(p) {
+      const minX = Math.floor(p.x - PLAYER.radius);
+      const maxX = Math.floor(p.x + PLAYER.radius);
+      const minY = Math.floor(p.y);
+      const maxY = Math.floor(p.y + PLAYER.height);
+      const minZ = Math.floor(p.z - PLAYER.radius);
+      const maxZ = Math.floor(p.z + PLAYER.radius);
+
+      for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) {
+        if (!inBounds(x, y, z)) continue;
+        if (!isSolid(x, y, z)) continue;
+        if (capsuleIntersectsBlock(p, x, y, z)) return true;
+      }
+      return false;
+    }
+
+    function collideMove(pos, vel, dt) {
+      const next = pos.clone();
+      const collide = !state.fly;
+
+      next.x += vel.x * dt;
+      if (collide && intersectsWorld(next)) { next.x = pos.x; vel.x = 0; }
+
+      next.z += vel.z * dt;
+      if (collide && intersectsWorld(next)) { next.z = pos.z; vel.z = 0; }
+
+      next.y += vel.y * dt;
+      state.onGround = false;
+
+      if (collide && intersectsWorld(next)) {
+        if (vel.y < 0) state.onGround = true;
+        next.y = pos.y;
+        vel.y = 0;
+      }
+
+      next.x = Math.max(0.5, Math.min(WORLD.sizeX - 0.5, next.x));
+      next.z = Math.max(0.5, Math.min(WORLD.sizeZ - 0.5, next.z));
+      next.y = Math.max(1.0, Math.min(WORLD.sizeY - PLAYER.height - 0.1, next.y));
+
+      pos.copy(next);
+    }
+
+    function respawn() {
+      state.vel.set(0, 0, 0);
+      state.pos.set(WORLD.sizeX / 2, WORLD.seaLevel + 12, WORLD.sizeZ / 2);
+      state.yaw = 0;
+      state.pitch = 0;
+      status("Respawned");
+    }
+
+    function buildHotbar() {
+      hotbarEl.innerHTML = "";
+      for (let i = 0; i < HOTBAR_IDS.length; i++) {
+        const id = HOTBAR_IDS[i];
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        const key = document.createElement("div");
+        key.className = "key";
+        key.textContent = i === 9 ? "0" : String(i + 1);
+        slot.appendChild(key);
+
+        if (id === BLOCK.AIR) {
+          const hand = document.createElement("div");
+          hand.className = "handIcon weaponSlotIcon";
+          hand.textContent = "✋";
+          slot.appendChild(hand);
+          const cnt = document.createElement("div");
+          cnt.className = "count weaponModeLabel";
+          cnt.textContent = "Hand";
+          slot.appendChild(cnt);
+        } else {
+          const sw = document.createElement("div");
+          sw.className = "swatch";
+          sw.style.backgroundImage = `url(${swatches[id]})`;
+          slot.appendChild(sw);
+
+          const cnt = document.createElement("div");
+          cnt.className = "count";
+          cnt.textContent = String(inv[id] ?? 0);
+          slot.appendChild(cnt);
+        }
+
+        hotbarEl.appendChild(slot);
+      }
+      updateHotbar();
+    }
+
+    function updateHotbar() {
+      const slots = hotbarEl.querySelectorAll(".slot");
+      slots.forEach((s, i) => s.classList.toggle("selected", i === state.selectedIndex));
+
+      slots.forEach((s, i) => {
+        const id = HOTBAR_IDS[i];
+        if (id === BLOCK.AIR) {
+          const icon = s.querySelector(".weaponSlotIcon");
+          const label = s.querySelector(".weaponModeLabel");
+          const mode = equipment.weaponMode;
+          if (icon) icon.textContent = mode === "sword" ? "⚔️" : mode === "sword" ? "🏹" : mode === "sword" ? "✨" : "✋";
+          if (label) label.textContent = mode === "hand" ? "Hand" : mode[0].toUpperCase() + mode.slice(1);
+          return;
+        }
+        const cnt = s.querySelector(".count");
+        if (cnt) cnt.textContent = String(inv[id] ?? 0);
+      });
+
+      const sel = HOTBAR_IDS[state.selectedIndex];
+      if (sel === BLOCK.AIR) statusEl.textContent = "First Slot: " + weaponModeName() + " . Q cycles . Click uses . Fly " + (state.fly ? "ON" : "OFF") + " . Seed " + WORLD.seed;
+      else statusEl.textContent = "Selected " + BLOCK_META[sel].name + " x" + (inv[sel] ?? 0) + " . Fly " + (state.fly ? "ON" : "OFF") + " . Seed " + WORLD.seed;
+      updateHeldWeapon();
+    }
+
+    const STORAGE_KEY = () => "voxel_edits_seed_" + WORLD.seed;
+
+    function saveEditsNow(forceToast = false) {
+      const obj = [];
+      for (const [k, v] of edits.entries()) obj.push([k, v]);
+      localStorage.setItem(STORAGE_KEY(), JSON.stringify(obj));
+      state.lastSaveAt = performance.now();
+      if (forceToast) status("Saved edits. Count " + edits.size);
+    }
+
+    function loadEdits() {
+      edits.clear();
+      const raw = localStorage.getItem(STORAGE_KEY());
+      if (!raw) return;
+      try {
+        const arr = JSON.parse(raw);
+        for (const [k, v] of arr) edits.set(k, v);
+      } catch {}
+    }
+
+    function resetWorld() {
+      WORLD.seed = (Math.random() * 2**31) | 0;
+      localStorage.setItem("voxel_seed", String(WORLD.seed));
+      localStorage.removeItem(STORAGE_KEY());
+      edits.clear();
+
+      for (const id of PLACEABLE_IDS) inv[id] = 0;
+      Object.values(ITEM).forEach(id => itemInv[id] = 0);
+      equipment.weaponMode = "hand"; equipment.armor = null; equipment.health = equipment.maxHealth; updateHeldWeapon();
+      state.selectedIndex = 0;
+
+      for (const [k, map] of chunkMeshes.entries()) {
+        for (const mesh of map.values()) {
+          scene.remove(mesh);
+          const idx = rayMeshes.indexOf(mesh);
+          if (idx >= 0) rayMeshes.splice(idx, 1);
+        }
+      }
+      chunkMeshes.clear();
+
+      generateBaseWorld();
+      rebuildAllChunks();
+      respawn();
+      buildHotbar();
+      updateRpgPanel();
+      renderCrafting();
+      status("World reset. New seed " + WORLD.seed);
+    }
+
+    function loadOrCreateSeed() {
+      const raw = localStorage.getItem("voxel_seed");
+      if (raw != null) {
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n)) return n;
+      }
+      const s = (Math.random() * 2**31) | 0;
+      localStorage.setItem("voxel_seed", String(s));
+      return s;
+    }
+
+    let statusTimer = 0;
+    function status(msg) {
+      statusEl.textContent = msg;
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => updateHotbar(), 1200);
+    }
+
+    function update(dt) {
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      camDir.y = 0;
+      if (camDir.lengthSq() > 0) camDir.normalize();
+
+      const forward = camDir;
+      const right = new THREE.Vector3(-forward.z, 0, forward.x);
+
+      let wish = new THREE.Vector3(0, 0, 0);
+      if (keys.w) wish.add(forward);
+      if (keys.s) wish.sub(forward);
+      if (keys.d) wish.add(right);
+      if (keys.a) wish.sub(right);
+      if (wish.lengthSq() > 0) wish.normalize();
+
+      if (state.fly) {
+        const speed = PLAYER.flySpeed * (keys.shift ? 1.2 : 1.0);
+        state.vel.x = wish.x * speed;
+        state.vel.z = wish.z * speed;
+        state.vel.y = (keys.space ? speed : 0) + ((keys.shift && !keys.space) ? -speed : 0);
+      } else {
+        const speed = keys.shift ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
+
+        const targetVX = wish.x * speed;
+        const targetVZ = wish.z * speed;
+
+        const accel = state.onGround ? 28 : 10;
+        state.vel.x = lerp(state.vel.x, targetVX, Math.min(1, accel * dt));
+        state.vel.z = lerp(state.vel.z, targetVZ, Math.min(1, accel * dt));
+
+        state.vel.y -= PLAYER.gravity * dt;
+        state.vel.y = Math.max(state.vel.y, -PLAYER.maxFall);
+
+        if (keys.space && state.onGround) {
+          state.vel.y = PLAYER.jumpVel;
+          state.onGround = false;
+        }
+      }
+
+      collideMove(state.pos, state.vel, dt);
+
+      camera.rotation.order = "YXZ";
+      camera.rotation.y = state.yaw;
+      camera.rotation.x = state.pitch;
+      camera.position.set(state.pos.x, state.pos.y + PLAYER.eye, state.pos.z);
+      sendPlayerNetState(false);
+
+      const now = performance.now();
+      if (now - state.lastSaveAt > 8000 && edits.size > 0) saveEditsNow(false);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.033, clock.getDelta());
+      if (state.locked || blockProgramRunning) update(dt);
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    playBtn.addEventListener("click", () => renderer.domElement.requestPointerLock());
+    resetBtn.addEventListener("click", () => resetWorld());
+    openBlocksMenuBtn.addEventListener("click", () => toggleCodingPanel(true));
+    saveMenuBtn.addEventListener("click", () => { saveEditsNow(true); renderer.domElement.requestPointerLock(); });
+    flyMenuBtn.addEventListener("click", () => { state.fly = !state.fly; status("Fly " + (state.fly ? "ON" : "OFF")); updateHotbar(); renderer.domElement.requestPointerLock(); });
+    respawnMenuBtn.addEventListener("click", () => { respawn(); renderer.domElement.requestPointerLock(); });
+    renderer.domElement.addEventListener("click", () => { if (!state.locked) renderer.domElement.requestPointerLock(); });
+
+
+
+    // Block coding layer. Press B to open a MakeCode Minecraft style workspace.
+    const codingToggle = document.getElementById("codingToggle");
+    const codingPanel = document.getElementById("codingPanel");
+    const codingClose = document.getElementById("codingClose");
+    const runBlocksBtn = document.getElementById("runBlocksBtn");
+    const stopBlocksBtn = document.getElementById("stopBlocksBtn");
+    const exampleBlocksBtn = document.getElementById("exampleBlocksBtn");
+    const clearBlocksBtn = document.getElementById("clearBlocksBtn");
+
+    let workspace = null;
+    let blockProgramShouldStop = false;
+    let blockProgramRunning = false;
+    let tickLoopRunning = false;
+    const blockVars = { score: 0, count: 0, index: 0, x: 0, y: 0, z: 0 };
+    const keyHandlers = new Map();
+
+    const KEY_OPTIONS = [["A", "KeyA"], ["B", "KeyB"], ["C", "KeyC"], ["D", "KeyD"], ["E", "KeyE"], ["F", "KeyF"], ["G", "KeyG"], ["H", "KeyH"], ["I", "KeyI"], ["J", "KeyJ"], ["K", "KeyK"], ["L", "KeyL"], ["M", "KeyM"], ["N", "KeyN"], ["O", "KeyO"], ["P", "KeyP"], ["Q", "KeyQ"], ["R", "KeyR"], ["T", "KeyT"], ["V", "KeyV"], ["X", "KeyX"], ["Y", "KeyY"], ["Z", "KeyZ"], ["space", "Space"], ["up", "ArrowUp"], ["down", "ArrowDown"], ["left", "ArrowLeft"], ["right", "ArrowRight"]];
+    const BLOCK_OPTIONS = [["grass", "1"], ["dirt", "2"], ["stone", "3"], ["sand", "4"], ["wood", "5"], ["leaves", "6"], ["coal ore", "7"], ["iron ore", "8"], ["diamond ore", "9"], ["air", "0"]];
+    const VAR_OPTIONS = [["score", "score"], ["count", "count"], ["index", "index"], ["x", "x"], ["y", "y"], ["z", "z"]];
+    const DIR_OPTIONS = [["forward", "forward"], ["back", "back"], ["left", "left"], ["right", "right"], ["up", "up"], ["down", "down"]];
+    const AXIS_OPTIONS = [["x", "x"], ["y", "y"], ["z", "z"]];
+
+    function initBlockCoding() {
+      if (!window.Blockly || workspace) return;
+
+      Blockly.defineBlocksWithJsonArray([
+        { type: "on_start", message0: "on start %1 do %2", args0: [{ type: "input_dummy" }, { type: "input_statement", name: "DO" }], colour: 35, nextStatement: null },
+        { type: "on_key_pressed", message0: "on %1 pressed %2 do %3", args0: [{ type: "field_dropdown", name: "KEY", options: KEY_OPTIONS }, { type: "input_dummy" }, { type: "input_statement", name: "DO" }], colour: 35, nextStatement: null },
+        { type: "on_tick", message0: "forever game update %1 do %2", args0: [{ type: "input_dummy" }, { type: "input_statement", name: "DO" }], colour: 35, nextStatement: null },
+        { type: "player_say", message0: "say %1", args0: [{ type: "field_input", name: "TEXT", text: "Hello!" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "move_direction", message0: "move %1 %2 steps", args0: [{ type: "field_dropdown", name: "DIR", options: DIR_OPTIONS }, { type: "input_value", name: "STEPS", check: "Number" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "turn_degrees", message0: "turn %1 degrees", args0: [{ type: "input_value", name: "DEG", check: "Number" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "look_direction", message0: "look %1", args0: [{ type: "field_dropdown", name: "LOOK", options: [["level", "level"], ["up", "up"], ["down", "down"]] }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "jump_action", message0: "jump", previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "set_fly", message0: "set flying %1", args0: [{ type: "field_dropdown", name: "FLY", options: [["on", "on"], ["off", "off"], ["toggle", "toggle"]] }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "teleport_relative", message0: "teleport relative x %1 y %2 z %3", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "teleport_absolute", message0: "teleport to x %1 y %2 z %3", args0: [{ type: "input_value", name: "X", check: "Number" }, { type: "input_value", name: "Y", check: "Number" }, { type: "input_value", name: "Z", check: "Number" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "wait_seconds", message0: "wait %1 seconds", args0: [{ type: "input_value", name: "SECONDS", check: "Number" }], previousStatement: null, nextStatement: null, colour: 205 },
+        { type: "player_coord", message0: "player %1", args0: [{ type: "field_dropdown", name: "AXIS", options: AXIS_OPTIONS }], output: "Number", colour: 205 },
+        { type: "player_position", message0: "player position", output: "Position", colour: 205 },
+        { type: "select_block_type", message0: "select block %1", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "give_block", message0: "give %1 %2 blocks", args0: [{ type: "input_value", name: "COUNT", check: "Number" }, { type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "place_action", message0: "place selected block at crosshair", previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "break_action", message0: "break block at crosshair", previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "place_relative", message0: "place selected block relative x %1 y %2 z %3", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "set_relative_block", message0: "set relative x %1 y %2 z %3 to %4", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }, { type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "set_world_block", message0: "set world x %1 y %2 z %3 to %4", args0: [{ type: "input_value", name: "X", check: "Number" }, { type: "input_value", name: "Y", check: "Number" }, { type: "input_value", name: "Z", check: "Number" }, { type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "fill_blocks", message0: "fill relative from x %1 y %2 z %3 to x %4 y %5 z %6 with %7", args0: [{ type: "input_value", name: "X1", check: "Number" }, { type: "input_value", name: "Y1", check: "Number" }, { type: "input_value", name: "Z1", check: "Number" }, { type: "input_value", name: "X2", check: "Number" }, { type: "input_value", name: "Y2", check: "Number" }, { type: "input_value", name: "Z2", check: "Number" }, { type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "replace_blocks", message0: "replace %1 with %2 from relative x %3 y %4 z %5 to x %6 y %7 z %8", args0: [{ type: "field_dropdown", name: "FROM", options: BLOCK_OPTIONS }, { type: "field_dropdown", name: "TO", options: BLOCK_OPTIONS }, { type: "input_value", name: "X1", check: "Number" }, { type: "input_value", name: "Y1", check: "Number" }, { type: "input_value", name: "Z1", check: "Number" }, { type: "input_value", name: "X2", check: "Number" }, { type: "input_value", name: "Y2", check: "Number" }, { type: "input_value", name: "Z2", check: "Number" }], previousStatement: null, nextStatement: null, colour: 132 },
+        { type: "block_ahead_is", message0: "block ahead is %1", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS }], output: "Boolean", colour: 132 },
+        { type: "relative_block_is", message0: "relative x %1 y %2 z %3 is %4", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }, { type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS }], output: "Boolean", colour: 132 },
+        { type: "get_relative_block", message0: "block id at relative x %1 y %2 z %3", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }], output: "Number", colour: 132 },
+        { type: "inventory_count", message0: "inventory count %1", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }], output: "Number", colour: 132 },
+        { type: "shape_line", message0: "line %1 length %2", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }, { type: "input_value", name: "LENGTH", check: "Number" }], previousStatement: null, nextStatement: null, colour: 88 },
+        { type: "shape_wall", message0: "wall %1 width %2 height %3", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }, { type: "input_value", name: "WIDTH", check: "Number" }, { type: "input_value", name: "HEIGHT", check: "Number" }], previousStatement: null, nextStatement: null, colour: 88 },
+        { type: "shape_floor", message0: "floor %1 width %2 depth %3", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }, { type: "input_value", name: "WIDTH", check: "Number" }, { type: "input_value", name: "DEPTH", check: "Number" }], previousStatement: null, nextStatement: null, colour: 88 },
+        { type: "shape_tower", message0: "tower %1 height %2", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }, { type: "input_value", name: "HEIGHT", check: "Number" }], previousStatement: null, nextStatement: null, colour: 88 },
+        { type: "shape_sphere", message0: "sphere %1 radius %2", args0: [{ type: "field_dropdown", name: "BLOCK", options: BLOCK_OPTIONS.slice(0, 9) }, { type: "input_value", name: "RADIUS", check: "Number" }], previousStatement: null, nextStatement: null, colour: 88 },
+        { type: "make_position", message0: "position x %1 y %2 z %3", args0: [{ type: "input_value", name: "X", check: "Number" }, { type: "input_value", name: "Y", check: "Number" }, { type: "input_value", name: "Z", check: "Number" }], output: "Position", colour: 185 },
+        { type: "relative_position", message0: "relative position x %1 y %2 z %3", args0: [{ type: "input_value", name: "DX", check: "Number" }, { type: "input_value", name: "DY", check: "Number" }, { type: "input_value", name: "DZ", check: "Number" }], output: "Position", colour: 185 },
+        { type: "position_axis", message0: "%1 of position %2", args0: [{ type: "field_dropdown", name: "AXIS", options: AXIS_OPTIONS }, { type: "input_value", name: "POS", check: "Position" }], output: "Number", colour: 185 },
+        { type: "repeat_times", message0: "repeat %1 times %2 do %3", args0: [{ type: "input_value", name: "TIMES", check: "Number" }, { type: "input_dummy" }, { type: "input_statement", name: "DO" }], previousStatement: null, nextStatement: null, colour: 300 },
+        { type: "forever_loop", message0: "forever %1 do %2", args0: [{ type: "input_dummy" }, { type: "input_statement", name: "DO" }], previousStatement: null, nextStatement: null, colour: 300 },
+        { type: "while_loop", message0: "while %1 do %2", args0: [{ type: "input_value", name: "COND", check: "Boolean" }, { type: "input_statement", name: "DO" }], previousStatement: null, nextStatement: null, colour: 300 },
+        { type: "for_loop", message0: "for index from %1 to %2 %3 do %4", args0: [{ type: "input_value", name: "FROM", check: "Number" }, { type: "input_value", name: "TO", check: "Number" }, { type: "input_dummy" }, { type: "input_statement", name: "DO" }], previousStatement: null, nextStatement: null, colour: 300 },
+        { type: "if_do", message0: "if %1 then %2", args0: [{ type: "input_value", name: "COND", check: "Boolean" }, { type: "input_statement", name: "DO" }], previousStatement: null, nextStatement: null, colour: 265 },
+        { type: "if_else_do", message0: "if %1 then %2 else %3", args0: [{ type: "input_value", name: "COND", check: "Boolean" }, { type: "input_statement", name: "DO" }, { type: "input_statement", name: "ELSE" }], previousStatement: null, nextStatement: null, colour: 265 },
+        { type: "boolean_value", message0: "%1", args0: [{ type: "field_dropdown", name: "BOOL", options: [["true", "true"], ["false", "false"]] }], output: "Boolean", colour: 265 },
+        { type: "not_bool", message0: "not %1", args0: [{ type: "input_value", name: "BOOL", check: "Boolean" }], output: "Boolean", colour: 265 },
+        { type: "and_or_bool", message0: "%1 %2 %3", args0: [{ type: "input_value", name: "A", check: "Boolean" }, { type: "field_dropdown", name: "OP", options: [["and", "and"], ["or", "or"]] }, { type: "input_value", name: "B", check: "Boolean" }], output: "Boolean", colour: 265 },
+        { type: "compare_numbers", message0: "%1 %2 %3", args0: [{ type: "input_value", name: "A", check: "Number" }, { type: "field_dropdown", name: "OP", options: [["=", "=="], ["≠", "!="], ["<", "<"], ["≤", "<="], [">", ">"], ["≥", ">="]] }, { type: "input_value", name: "B", check: "Number" }], output: "Boolean", colour: 265 },
+        { type: "math_arithmetic", message0: "%1 %2 %3", args0: [{ type: "input_value", name: "A", check: "Number" }, { type: "field_dropdown", name: "OP", options: [["+", "+"], ["-", "-"], ["×", "*"], ["÷", "/"]] }, { type: "input_value", name: "B", check: "Number" }], output: "Number", colour: 225 },
+        { type: "math_mod", message0: "%1 mod %2", args0: [{ type: "input_value", name: "A", check: "Number" }, { type: "input_value", name: "B", check: "Number" }], output: "Number", colour: 225 },
+        { type: "random_int", message0: "random integer from %1 to %2", args0: [{ type: "input_value", name: "MIN", check: "Number" }, { type: "input_value", name: "MAX", check: "Number" }], output: "Number", colour: 225 },
+        { type: "round_number", message0: "round %1", args0: [{ type: "input_value", name: "VALUE", check: "Number" }], output: "Number", colour: 225 },
+        { type: "math_single", message0: "%1 %2", args0: [{ type: "field_dropdown", name: "OP", options: [["abs", "abs"], ["floor", "floor"], ["ceiling", "ceil"], ["sqrt", "sqrt"]] }, { type: "input_value", name: "VALUE", check: "Number" }], output: "Number", colour: 225 },
+        { type: "math_minmax", message0: "%1 of %2 and %3", args0: [{ type: "field_dropdown", name: "OP", options: [["min", "min"], ["max", "max"]] }, { type: "input_value", name: "A", check: "Number" }, { type: "input_value", name: "B", check: "Number" }], output: "Number", colour: 225 },
+        { type: "set_named_var", message0: "set %1 to %2", args0: [{ type: "field_dropdown", name: "VAR", options: VAR_OPTIONS }, { type: "input_value", name: "VALUE", check: "Number" }], previousStatement: null, nextStatement: null, colour: 335 },
+        { type: "change_named_var", message0: "change %1 by %2", args0: [{ type: "field_dropdown", name: "VAR", options: VAR_OPTIONS }, { type: "input_value", name: "AMOUNT", check: "Number" }], previousStatement: null, nextStatement: null, colour: 335 },
+        { type: "get_named_var", message0: "%1", args0: [{ type: "field_dropdown", name: "VAR", options: VAR_OPTIONS }], output: "Number", colour: 335 }
+      ]);
+
+      const minecraftTheme = Blockly.Theme.defineTheme("minecraftVibrant", {
+        base: Blockly.Themes.Classic,
+        componentStyles: {
+          workspaceBackgroundColour: "#d8edc8",
+          toolboxBackgroundColour: "#21351f",
+          toolboxForegroundColour: "#ffffff",
+          flyoutBackgroundColour: "#eef8e8",
+          flyoutForegroundColour: "#1f301c",
+          flyoutOpacity: 0.98,
+          scrollbarColour: "#5f9f45",
+          insertionMarkerColour: "#ffffff",
+          insertionMarkerOpacity: 0.45
+        }
+      });
+      workspace = Blockly.inject("blocklyDiv", { toolbox: document.getElementById("toolbox"), trashcan: true, scrollbars: true, sounds: false, renderer: "zelos", theme: minecraftTheme });
+      installMinecraftBlockTextureFilter();
+    }
+
+    function installMinecraftBlockTextureFilter() {
+      const svg = document.querySelector("#blocklyDiv svg");
+      if (!svg || svg.querySelector("#minecraftBlockTexture")) return;
+      const ns = "http://www.w3.org/2000/svg";
+      const defs = document.createElementNS(ns, "defs");
+      defs.innerHTML = `
+        <filter id="minecraftBlockTexture" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="noise"/>
+          <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.55  0 0 0 0 0.55  0 0 0 0 0.55  0 0 0 .18 0" result="grain"/>
+          <feComposite in="grain" in2="SourceAlpha" operator="in" result="grainMasked"/>
+          <feBlend in="SourceGraphic" in2="grainMasked" mode="overlay" result="textured"/>
+          <feDropShadow dx="0" dy="1" stdDeviation="0.4" flood-color="#ffffff" flood-opacity="0.22"/>
+          <feBlend in="textured" mode="normal"/>
+        </filter>`;
+      svg.insertBefore(defs, svg.firstChild);
+    }
+
+    function returnToGameFromCoding() {
+      overlay.style.display = "none";
+      if (!document.pointerLockElement) {
+        try { renderer.domElement.requestPointerLock(); } catch {}
+      }
+    }
+
+    function toggleCodingPanel(open = !codingPanel.classList.contains("open")) {
+      codingPanel.classList.toggle("open", open);
+      overlay.style.display = "none";
+      if (open) {
+        initBlockCoding();
+        setTimeout(() => Blockly.svgResize(workspace), 50);
+        if (document.pointerLockElement) document.exitPointerLock();
+      } else {
+        returnToGameFromCoding();
+      }
+    }
+
+    codingToggle.addEventListener("click", () => toggleCodingPanel());
+    codingClose.addEventListener("click", () => toggleCodingPanel(false));
+    clearBlocksBtn.addEventListener("click", () => workspace?.clear());
+    stopBlocksBtn.addEventListener("click", () => { blockProgramShouldStop = true; tickLoopRunning = false; status("Block program stopping"); });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "KeyB" && !e.repeat) { e.preventDefault(); toggleCodingPanel(); return; }
+      const handler = keyHandlers.get(e.code);
+      if (handler && !blockProgramRunning && !e.repeat) {
+        blockProgramShouldStop = false;
+        blockProgramRunning = true;
+        executeChain(handler).finally(() => { keys.w = keys.a = keys.s = keys.d = keys.space = keys.shift = false; blockProgramRunning = false; status("Key block finished"); });
+      }
+    });
+
+    exampleBlocksBtn.addEventListener("click", () => {
+      initBlockCoding();
+      workspace.clear();
+      const xmlText = `<xml xmlns="https://developers.google.com/blockly/xml">
+        <block type="on_start" x="20" y="20"><statement name="DO"><block type="player_say"><field name="TEXT">Building a small house</field><next><block type="give_block"><field name="BLOCK">5</field><value name="COUNT"><shadow type="math_number"><field name="NUM">100</field></shadow></value><next><block type="shape_floor"><field name="BLOCK">5</field><value name="WIDTH"><shadow type="math_number"><field name="NUM">7</field></shadow></value><value name="DEPTH"><shadow type="math_number"><field name="NUM">7</field></shadow></value><next><block type="shape_wall"><field name="BLOCK">5</field><value name="WIDTH"><shadow type="math_number"><field name="NUM">7</field></shadow></value><value name="HEIGHT"><shadow type="math_number"><field name="NUM">4</field></shadow></value></block></next></block></next></block></next></block></statement></block>
+        <block type="on_key_pressed" x="420" y="20"><field name="KEY">KeyP</field><statement name="DO"><block type="select_block_type"><field name="BLOCK">2</field><next><block type="place_relative"><value name="DX"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DY"><shadow type="math_number"><field name="NUM">0</field></shadow></value><value name="DZ"><shadow type="math_number"><field name="NUM">1</field></shadow></value></block></next></block></statement></block>
+      </xml>`;
+      const dom = Blockly.Xml.textToDom(xmlText);
+      Blockly.Xml.domToWorkspace(dom, workspace);
+      workspace.zoomToFit();
+      status("Example blocks loaded");
+    });
+
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    function inputBlock(block, name) { return block.getInputTargetBlock(name); }
+    function selectedBlockIdToHotbarIndex(id) { return HOTBAR_IDS.findIndex(v => v === id); }
+    function clampNum(n, min, max) { return Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0)); }
+    function clampInt(n, min, max) { return Math.round(clampNum(n, min, max)); }
+
+    function dirVector(dir, yaw = state.yaw) {
+      const forward = new THREE.Vector3(Math.sin(-yaw), 0, Math.cos(-yaw));
+      const right = new THREE.Vector3(forward.z, 0, -forward.x);
+      if (dir === "back") return forward.multiplyScalar(-1);
+      if (dir === "left") return right.multiplyScalar(-1);
+      if (dir === "right") return right;
+      if (dir === "up") return new THREE.Vector3(0, 1, 0);
+      if (dir === "down") return new THREE.Vector3(0, -1, 0);
+      return forward;
+    }
+
+    function gridDirFromIndex(i) {
+      const dirs = [{ x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }, { x: -1, y: 0, z: 0 }];
+      return dirs[((i % 4) + 4) % 4];
+    }
+
+    function relativeWorldPos(dx, dy, dz) {
+      const forward = new THREE.Vector3(Math.sin(-state.yaw), 0, Math.cos(-state.yaw));
+      const right = new THREE.Vector3(forward.z, 0, -forward.x);
+      const baseX = Math.floor(state.pos.x);
+      const baseY = Math.floor(state.pos.y + 0.1);
+      const baseZ = Math.floor(state.pos.z);
+      return { x: Math.round(baseX + right.x * dx + forward.x * dz), y: Math.round(baseY + dy), z: Math.round(baseZ + right.z * dx + forward.z * dz) };
+    }
+
+    function blockAheadPos() { return relativeWorldPos(0, 0, 1); }
+
+    function setBlockDirect(x, y, z, id, avoidPlayer = true) {
+      x = clampInt(x, 0, WORLD.sizeX - 1); y = clampInt(y, 0, WORLD.sizeY - 1); z = clampInt(z, 0, WORLD.sizeZ - 1); id = Number(id);
+      if (avoidPlayer && id !== BLOCK.AIR && capsuleIntersectsBlock(state.pos, x, y, z)) return false;
+      setBlock(x, y, z, id);
+      markDirtyAroundBlock(x, y, z);
+      return true;
+    }
+
+    function flushAfterBuild() { scheduleDirtyFlush(); saveEditsNow(false); }
+
+    function placeSelectedRelative(dx, dy, dz, consume = true) {
+      const selectedId = HOTBAR_IDS[state.selectedIndex];
+      if (selectedId === BLOCK.AIR) return false;
+      const p = relativeWorldPos(Math.round(dx), Math.round(dy), Math.round(dz));
+      if (!inBounds(p.x, p.y, p.z) || getBlock(p.x, p.y, p.z) !== BLOCK.AIR) return false;
+      if (capsuleIntersectsBlock(state.pos, p.x, p.y, p.z)) return false;
+      if (consume && !takeFromInv(selectedId, 1)) return false;
+      setBlockDirect(p.x, p.y, p.z, selectedId);
+      flushAfterBuild();
+      status("Block placed by code");
+      return true;
+    }
+
+    function setRelativeBlock(dx, dy, dz, id) { const p = relativeWorldPos(Math.round(dx), Math.round(dy), Math.round(dz)); const ok = setBlockDirect(p.x, p.y, p.z, id); flushAfterBuild(); return ok; }
+
+    function fillRelative(x1, y1, z1, x2, y2, z2, id, onlyReplace = null) {
+      const a = relativeWorldPos(x1, y1, z1), b = relativeWorldPos(x2, y2, z2);
+      const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x), minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y), minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
+      let count = 0;
+      for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) {
+        if (count++ > 6000) break;
+        if (!inBounds(x, y, z)) continue;
+        if (onlyReplace !== null && getBlock(x, y, z) !== onlyReplace) continue;
+        setBlockDirect(x, y, z, id);
+      }
+      flushAfterBuild();
+    }
+
+    function buildLine(id, length) { for (let z = 1; z <= length; z++) setRelativeBlock(0, 0, z, id); }
+    function buildFloor(id, width, depth) { const w = Math.floor(width / 2), d = Math.floor(depth / 2); fillRelative(-w, -1, -d, w, -1, d, id); }
+    function buildWall(id, width, height) { const w = Math.floor(width / 2); fillRelative(-w, 0, 2, w, height - 1, 2, id); }
+    function buildTower(id, height) { fillRelative(1, 0, 1, 1, height - 1, 1, id); }
+    function buildSphere(id, radius) {
+      radius = clampInt(radius, 1, 8);
+      for (let x = -radius; x <= radius; x++) for (let y = -radius; y <= radius; y++) for (let z = -radius; z <= radius; z++) {
+        const d = Math.sqrt(x * x + y * y + z * z);
+        if (d <= radius && d >= radius - 1.35) setRelativeBlock(x, y + radius, z, id);
+      }
+    }
+
+    function evalPosition(block) {
+      if (!block) return { x: 0, y: 0, z: 0 };
+      if (block.type === "player_position") return { x: Math.floor(state.pos.x), y: Math.floor(state.pos.y), z: Math.floor(state.pos.z) };
+      if (block.type === "make_position") return { x: evalNumber(inputBlock(block, "X")), y: evalNumber(inputBlock(block, "Y")), z: evalNumber(inputBlock(block, "Z")) };
+      if (block.type === "relative_position") return relativeWorldPos(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ")));
+      return { x: 0, y: 0, z: 0 };
+    }
+
+    function evalNumber(block) {
+      if (!block) return 0;
+      if (block.type === "math_number") return Number(block.getFieldValue("NUM")) || 0;
+      if (block.type === "math_arithmetic") { const a = evalNumber(inputBlock(block, "A")); const b = evalNumber(inputBlock(block, "B")); const op = block.getFieldValue("OP"); if (op === "+") return a + b; if (op === "-") return a - b; if (op === "*") return a * b; return b === 0 ? 0 : a / b; }
+      if (block.type === "math_mod") { const a = evalNumber(inputBlock(block, "A")); const b = evalNumber(inputBlock(block, "B")); return b === 0 ? 0 : a % b; }
+      if (block.type === "random_int") { const min = Math.round(evalNumber(inputBlock(block, "MIN"))); const max = Math.round(evalNumber(inputBlock(block, "MAX"))); const lo = Math.min(min, max), hi = Math.max(min, max); return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+      if (block.type === "round_number") return Math.round(evalNumber(inputBlock(block, "VALUE")));
+      if (block.type === "math_single") { const v = evalNumber(inputBlock(block, "VALUE")); const op = block.getFieldValue("OP"); if (op === "abs") return Math.abs(v); if (op === "floor") return Math.floor(v); if (op === "ceil") return Math.ceil(v); return Math.sqrt(Math.max(0, v)); }
+      if (block.type === "math_minmax") return block.getFieldValue("OP") === "min" ? Math.min(evalNumber(inputBlock(block, "A")), evalNumber(inputBlock(block, "B"))) : Math.max(evalNumber(inputBlock(block, "A")), evalNumber(inputBlock(block, "B")));
+      if (block.type === "get_named_var") return blockVars[block.getFieldValue("VAR")] ?? 0;
+      if (block.type === "inventory_count") return inv[Number(block.getFieldValue("BLOCK"))] ?? 0;
+      if (block.type === "player_coord") return Math.floor(state.pos[block.getFieldValue("AXIS")]);
+      if (block.type === "get_relative_block") { const p = relativeWorldPos(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ"))); return getBlock(p.x, p.y, p.z); }
+      if (block.type === "position_axis") { const p = evalPosition(inputBlock(block, "POS")); return Math.floor(p[block.getFieldValue("AXIS")] ?? 0); }
+      return 0;
+    }
+
+    function evalBool(block) {
+      if (!block) return false;
+      if (block.type === "boolean_value") return block.getFieldValue("BOOL") === "true";
+      if (block.type === "not_bool") return !evalBool(inputBlock(block, "BOOL"));
+      if (block.type === "and_or_bool") return block.getFieldValue("OP") === "and" ? (evalBool(inputBlock(block, "A")) && evalBool(inputBlock(block, "B"))) : (evalBool(inputBlock(block, "A")) || evalBool(inputBlock(block, "B")));
+      if (block.type === "compare_numbers") { const a = evalNumber(inputBlock(block, "A")); const b = evalNumber(inputBlock(block, "B")); const op = block.getFieldValue("OP"); if (op === "==") return a === b; if (op === "!=") return a !== b; if (op === "<") return a < b; if (op === "<=") return a <= b; if (op === ">") return a > b; return a >= b; }
+      if (block.type === "block_ahead_is") { const p = blockAheadPos(); return getBlock(p.x, p.y, p.z) === Number(block.getFieldValue("BLOCK")); }
+      if (block.type === "relative_block_is") { const p = relativeWorldPos(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ"))); return getBlock(p.x, p.y, p.z) === Number(block.getFieldValue("BLOCK")); }
+      return false;
+    }
+
+    async function moveDirection(dir, steps) {
+      steps = clampNum(steps, 0, 50);
+      if (dir === "up" || dir === "down") { state.fly = true; state.pos.y = clampNum(state.pos.y + (dir === "up" ? steps : -steps), 1, WORLD.sizeY - PLAYER.height - 0.1); await sleep(100); return; }
+      const duration = steps * 380; const keyMap = { forward: "w", back: "s", left: "a", right: "d" }; const k = keyMap[dir] || "w"; keys[k] = true; const started = performance.now(); while (!blockProgramShouldStop && performance.now() - started < duration) await sleep(30); keys[k] = false;
+    }
+
+    async function jumpOnce() { keys.space = true; await sleep(180); keys.space = false; await sleep(450); }
+
+    async function executeBlock(block) {
+      if (!block || blockProgramShouldStop) return;
+      if (block.type === "player_say") { status(block.getFieldValue("TEXT") || ""); await sleep(600); }
+      else if (block.type === "move_direction") await moveDirection(block.getFieldValue("DIR"), evalNumber(inputBlock(block, "STEPS")) || 1);
+      else if (block.type === "turn_degrees") { state.yaw -= THREE.MathUtils.degToRad(evalNumber(inputBlock(block, "DEG"))); await sleep(100); }
+      else if (block.type === "look_direction") { const look = block.getFieldValue("LOOK"); state.pitch = look === "up" ? -0.65 : (look === "down" ? 0.65 : 0); await sleep(100); }
+      else if (block.type === "jump_action") await jumpOnce();
+      else if (block.type === "set_fly") { const mode = block.getFieldValue("FLY"); state.fly = mode === "toggle" ? !state.fly : mode === "on"; updateHotbar(); await sleep(80); }
+      else if (block.type === "teleport_relative") { const p = relativeWorldPos(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ"))); state.pos.set(clampNum(p.x, .5, WORLD.sizeX - .5), clampNum(p.y, 1, WORLD.sizeY - PLAYER.height - .1), clampNum(p.z, .5, WORLD.sizeZ - .5)); await sleep(100); }
+      else if (block.type === "teleport_absolute") { state.pos.set(clampNum(evalNumber(inputBlock(block, "X")), .5, WORLD.sizeX - .5), clampNum(evalNumber(inputBlock(block, "Y")), 1, WORLD.sizeY - PLAYER.height - .1), clampNum(evalNumber(inputBlock(block, "Z")), .5, WORLD.sizeZ - .5)); await sleep(100); }
+      else if (block.type === "wait_seconds") await sleep(clampNum(evalNumber(inputBlock(block, "SECONDS")), 0, 30) * 1000);
+      else if (block.type === "select_block_type") { const i = selectedBlockIdToHotbarIndex(Number(block.getFieldValue("BLOCK"))); if (i >= 0) { state.selectedIndex = i; updateHotbar(); } await sleep(80); }
+      else if (block.type === "give_block") { addToInv(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "COUNT")), 0, 999)); await sleep(60); }
+      else if (block.type === "place_action") { tryPlace(); await sleep(160); }
+      else if (block.type === "break_action") { tryBreak(); await sleep(160); }
+      else if (block.type === "place_relative") { placeSelectedRelative(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ")), true); await sleep(120); }
+      else if (block.type === "set_relative_block") { setRelativeBlock(evalNumber(inputBlock(block, "DX")), evalNumber(inputBlock(block, "DY")), evalNumber(inputBlock(block, "DZ")), Number(block.getFieldValue("BLOCK"))); await sleep(120); }
+      else if (block.type === "set_world_block") { setBlockDirect(evalNumber(inputBlock(block, "X")), evalNumber(inputBlock(block, "Y")), evalNumber(inputBlock(block, "Z")), Number(block.getFieldValue("BLOCK"))); flushAfterBuild(); await sleep(80); }
+      else if (block.type === "fill_blocks") { fillRelative(evalNumber(inputBlock(block, "X1")), evalNumber(inputBlock(block, "Y1")), evalNumber(inputBlock(block, "Z1")), evalNumber(inputBlock(block, "X2")), evalNumber(inputBlock(block, "Y2")), evalNumber(inputBlock(block, "Z2")), Number(block.getFieldValue("BLOCK"))); await sleep(160); }
+      else if (block.type === "replace_blocks") { fillRelative(evalNumber(inputBlock(block, "X1")), evalNumber(inputBlock(block, "Y1")), evalNumber(inputBlock(block, "Z1")), evalNumber(inputBlock(block, "X2")), evalNumber(inputBlock(block, "Y2")), evalNumber(inputBlock(block, "Z2")), Number(block.getFieldValue("TO")), Number(block.getFieldValue("FROM"))); await sleep(160); }
+      else if (block.type === "shape_line") { buildLine(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "LENGTH")), 1, 60)); await sleep(160); }
+      else if (block.type === "shape_wall") { buildWall(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "WIDTH")), 1, 40), clampInt(evalNumber(inputBlock(block, "HEIGHT")), 1, 25)); await sleep(160); }
+      else if (block.type === "shape_floor") { buildFloor(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "WIDTH")), 1, 40), clampInt(evalNumber(inputBlock(block, "DEPTH")), 1, 40)); await sleep(160); }
+      else if (block.type === "shape_tower") { buildTower(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "HEIGHT")), 1, 40)); await sleep(160); }
+      else if (block.type === "shape_sphere") { buildSphere(Number(block.getFieldValue("BLOCK")), clampInt(evalNumber(inputBlock(block, "RADIUS")), 1, 8)); await sleep(160); }
+      else if (block.type === "set_named_var") { blockVars[block.getFieldValue("VAR")] = evalNumber(inputBlock(block, "VALUE")); await sleep(30); }
+      else if (block.type === "change_named_var") { const v = block.getFieldValue("VAR"); blockVars[v] = (blockVars[v] ?? 0) + evalNumber(inputBlock(block, "AMOUNT")); await sleep(30); }
+      else if (block.type === "if_do") { if (evalBool(inputBlock(block, "COND"))) await executeChain(block.getInputTargetBlock("DO")); }
+      else if (block.type === "if_else_do") { await executeChain(block.getInputTargetBlock(evalBool(inputBlock(block, "COND")) ? "DO" : "ELSE")); }
+      else if (block.type === "repeat_times") { const times = Math.max(0, Math.min(500, Math.round(evalNumber(inputBlock(block, "TIMES"))))); for (let i = 0; i < times && !blockProgramShouldStop; i++) await executeChain(block.getInputTargetBlock("DO")); }
+      else if (block.type === "forever_loop") { for (let i = 0; i < 10000 && !blockProgramShouldStop; i++) { await executeChain(block.getInputTargetBlock("DO")); await sleep(10); } }
+      else if (block.type === "while_loop") { let guard = 0; while (!blockProgramShouldStop && evalBool(inputBlock(block, "COND")) && guard++ < 1000) { await executeChain(block.getInputTargetBlock("DO")); await sleep(10); } }
+      else if (block.type === "for_loop") { const from = Math.round(evalNumber(inputBlock(block, "FROM"))); const to = Math.round(evalNumber(inputBlock(block, "TO"))); const step = from <= to ? 1 : -1; for (let i = from; step > 0 ? i <= to : i >= to; i += step) { if (blockProgramShouldStop) break; blockVars.index = i; await executeChain(block.getInputTargetBlock("DO")); } }
+    }
+
+    async function executeChain(block) { let cursor = block; while (cursor && !blockProgramShouldStop) { if (cursor.type === "on_start" || cursor.type === "on_key_pressed" || cursor.type === "on_tick") await executeChain(cursor.getInputTargetBlock("DO")); else await executeBlock(cursor); cursor = cursor.getNextBlock(); } }
+
+    function refreshKeyHandlers() { keyHandlers.clear(); for (const top of workspace.getTopBlocks(false)) if (top.type === "on_key_pressed") keyHandlers.set(top.getFieldValue("KEY"), top.getInputTargetBlock("DO")); }
+
+    async function runTickLoop(block) { if (tickLoopRunning) return; tickLoopRunning = true; for (let i = 0; i < 10000 && tickLoopRunning && !blockProgramShouldStop; i++) { await executeChain(block.getInputTargetBlock("DO")); await sleep(250); } tickLoopRunning = false; }
+
+    async function runBlockProgram() {
+      initBlockCoding();
+      if (blockProgramRunning) return;
+      const topBlocks = workspace.getTopBlocks(true);
+      if (!topBlocks.length) { status("Add blocks first"); return; }
+      refreshKeyHandlers();
+      blockProgramShouldStop = false;
+      for (const t of topBlocks.filter(b => b.type === "on_tick")) runTickLoop(t);
+      const startBlocks = topBlocks.filter(b => b.type === "on_start");
+      const looseBlocks = topBlocks.filter(b => b.type !== "on_start" && b.type !== "on_key_pressed" && b.type !== "on_tick" && !b.getPreviousBlock());
+      const runnable = startBlocks.length ? startBlocks : looseBlocks;
+      if (!runnable.length) { status("No on start blocks to run. Key events are armed."); return; }
+      blockProgramRunning = true;
+      toggleCodingPanel(false);
+      status("Running block program");
+      for (const block of runnable) { if (blockProgramShouldStop) break; await executeChain(block); }
+      keys.w = keys.a = keys.s = keys.d = keys.space = keys.shift = false;
+      blockProgramRunning = false;
+      status(blockProgramShouldStop ? "Block program stopped" : "Block program finished. Key events armed.");
+    }
+
+    runBlocksBtn.addEventListener("click", runBlockProgram);
+
+    function boot() {
+      generateBaseWorld();
+      loadEdits();
+      rebuildAllChunks();
+      respawn();
+      buildHotbar();
+      updateRpgPanel();
+      renderCrafting();
+      animate();
+      status("PVP mode ready. Zombies removed. First hotbar slot cycles weapons with Q.");
+    }
+
+    boot();
+    // ESC_MENU_FINAL_OVERRIDE
+    setTimeout(() => {
+      overlay.style.pointerEvents = "auto";
+      overlay.style.zIndex = "50";
+      document.querySelectorAll(".mcMenu button").forEach(btn => {
+        btn.style.pointerEvents = "auto";
+      });
+    }, 0);
+  </script>
+</body>
+</html>
