@@ -931,9 +931,39 @@
       });
 
       console.log("ICE servers:", iceServers);
+
+      NET.peer.onicegatheringstatechange = () => {
+        console.log("ICE gathering state:", NET.peer.iceGatheringState);
+      };
+
+      NET.peer.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", NET.peer.iceConnectionState);
+      };
+
+      NET.peer.onconnectionstatechange = () => {
+        console.log("Peer connection state:", NET.peer.connectionState);
+
+        if (["failed", "disconnected", "closed"].includes(NET.peer.connectionState)) {
+          console.warn("WebRTC failed or disconnected.");
+          closePeerConnection();
+        }
+      };
+
+      NET.peer.onsignalingstatechange = () => {
+        console.log("Signaling state:", NET.peer.signalingState);
+      };
       NET.peer.onicecandidate = (event) => {
-        if (event.candidate && NET.socket && NET.room) {
-          NET.socket.emit("ice-candidate", { room: NET.room, candidate: event.candidate });
+        if (event.candidate) {
+          console.log("ICE candidate:", event.candidate.candidate);
+
+          if (NET.socket && NET.room) {
+            NET.socket.emit("ice-candidate", {
+              room: NET.room,
+              candidate: event.candidate
+            });
+          }
+        } else {
+          console.log("ICE candidate gathering complete.");
         }
       };
       NET.peer.onconnectionstatechange = () => {
